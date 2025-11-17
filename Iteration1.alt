@@ -1,0 +1,1299 @@
+domain PowerElec {Working, MinorElec, MajorElec, HazardElec, CatasElec}
+domain SignalExc {Working, MinorDelay, MajorDelay, HazardDelay, CatasData}
+domain ZonalThermal {Working, MinorTemp, MajorTemp, HazardTemp, CatasTemp}
+domain PowerMech {Working, MinorMech, MajorMech, HazardMech, CatasMech}
+domain ZonalVibration {Working, MinorVibra, MajorVibra, HazardVibra, CatasVibra}
+domain Control {Working, MNRCtrl, MJRCtrl, HZDCtrl, CATCtrl}
+
+
+class Battery
+// Electrical
+	PowerElec b_Elec (init = Working); // internal state of the battery (inherent)
+	PowerElec B_outFlowET, B_outFlowEV, B_outFlowE (reset = Working); //  output flow variable giving the information about the internal state of the battery
+
+  		parameter Real lambda_minor_elec = 2.0E-05;
+  		parameter Real lambda_major_Elec = 2.0E-05;
+  		parameter Real lambda_hazard_elec = 1.0E-05;
+ 		parameter Real lambda_catas_elec = 5.0E-06;
+
+    event failToMinorElec (delay = exponential(lambda_minor_elec));
+  	event failToMajorElec (delay = exponential(lambda_major_Elec));
+  	event failToHazardElec (delay = exponential(lambda_hazard_elec));
+  	event failToCatasElec (delay = exponential(lambda_catas_elec));
+
+// Thermal
+	ZonalThermal b_Thermal (init = Working); // Internal state (inherent) of the Thermal domain
+	ZonalThermal B_inFlowT, B_outFlowT (reset = Working);
+
+		parameter Real lambda_minor_temp = 2.0E-05;
+		parameter Real lambda_major_temp = 2.0E-05;
+		parameter Real lambda_hazard_temp = 1.0E-05;
+		parameter Real lambda_catas_temp = 5.0E-06;
+
+	event failToMinorTemp (delay = exponential(lambda_minor_temp));
+	event failToMajorTemp (delay = exponential(lambda_major_temp));
+	event failToHazardTemp (delay = exponential(lambda_hazard_temp));
+	event failToCatasTemp (delay = exponential(lambda_catas_temp));
+
+// Vibration
+	ZonalVibration B_inFlowV (reset = Working);
+
+    transition
+	// Electrical
+   	 	failToMinorElec: b_Elec == Working -> b_Elec := MinorElec;
+   	 	failToMajorElec: b_Elec == Working -> b_Elec := MajorElec;
+   	 	failToHazardElec: b_Elec == Working -> b_Elec := HazardElec;
+     	failToCatasElec: b_Elec == Working -> b_Elec := CatasElec;
+	// Thermal
+		failToMinorTemp: b_Thermal == Working -> b_Thermal := MinorTemp;
+        failToMajorTemp: b_Thermal == Working -> b_Thermal := MajorTemp;
+        failToHazardTemp: b_Thermal == Working -> b_Thermal := HazardTemp;
+        failToCatasTemp: b_Thermal == Working -> b_Thermal := CatasTemp;
+
+	assertion
+	// Electrical
+		B_outFlowET := switch {
+    case ((b_Elec == Working) and (B_inFlowT == Working)) : Working
+    case ((b_Elec == MinorElec) and (B_inFlowT == Working)) : MinorElec
+    case ((b_Elec == Working) and (B_inFlowT == MinorTemp)) or ((b_Elec == MinorElec) and (B_inFlowT == MinorTemp)) or ((b_Elec == MajorElec) and (B_inFlowT == Working or B_inFlowT == MinorTemp)) : MajorElec
+    case ((b_Elec == Working) and (B_inFlowT == MajorTemp)) or ((b_Elec == MinorElec) and (B_inFlowT == MajorTemp)) or ((b_Elec == MajorElec) and (B_inFlowT == MajorTemp)) or ((b_Elec == HazardElec) and (B_inFlowT == Working or B_inFlowT == MinorTemp or B_inFlowT == MajorTemp)) : HazardElec
+    default : CatasElec
+};
+
+
+		B_outFlowEV := switch {
+    case ((b_Elec == Working) and (B_inFlowV == Working)) : Working
+    case ((b_Elec == Working) and (B_inFlowV == MinorVibra)) or ((b_Elec == MinorElec) and (B_inFlowV == Working or B_inFlowV == MinorVibra)) : MinorElec
+    case ((b_Elec == Working) and (B_inFlowV == MajorVibra)) or ((b_Elec == MinorElec) and (B_inFlowV == MajorVibra)) or ((b_Elec == MajorElec) and (B_inFlowV == Working or B_inFlowV == MinorVibra or B_inFlowV == MajorVibra)) : MajorElec
+    case ((b_Elec == Working) and (B_inFlowV == HazardVibra)) or ((b_Elec == MinorElec) and (B_inFlowV == HazardVibra)) or ((b_Elec == MajorElec) and (B_inFlowV == HazardVibra)) or ((b_Elec == HazardElec) and (B_inFlowV == Working or B_inFlowV == MinorVibra or B_inFlowV == MajorVibra or B_inFlowV == HazardVibra)) : HazardElec
+    default : CatasElec
+};
+
+	
+		B_outFlowE := switch {
+    case ((B_outFlowEV == Working) and (B_outFlowET == Working)) : Working
+    case ((B_outFlowEV == Working) and (B_outFlowET == MinorElec)) or ((B_outFlowEV == MinorElec) and (B_outFlowET == Working or B_outFlowET == MinorElec)) : MinorElec
+    case ((B_outFlowEV == Working) and (B_outFlowET == MajorElec)) or ((B_outFlowEV == MinorElec) and (B_outFlowET == MajorElec)) or ((B_outFlowEV == MajorElec) and (B_outFlowET == Working or B_outFlowET == MinorElec or B_outFlowET == MajorElec)) : MajorElec
+    case ((B_outFlowEV == Working) and (B_outFlowET == HazardElec)) or ((B_outFlowEV == MinorElec) and (B_outFlowET == HazardElec)) or ((B_outFlowEV == MajorElec) and (B_outFlowET == HazardElec)) or ((B_outFlowEV == HazardElec) and (B_outFlowET == Working or B_outFlowET == MinorElec or B_outFlowET == MajorElec or B_outFlowET == HazardElec)) : HazardElec
+    default : CatasElec
+};
+
+
+		//B_outFlowE1 := B_outFlowE; // To observer
+
+/*
+		B_outFlowE1 := B_outFlowE;
+		B_outFlowE2 := B_outFlowE;
+		B_outFlowE3 := B_outFlowE;
+		B_outFlowE4 := B_outFlowE; 
+		B_outFlowE5 := B_outFlowE; 
+		B_outFlowE6 := B_outFlowE; 
+		B_outFlowE7 := B_outFlowE; 
+		B_outFlowE8 := B_outFlowE; 
+*/
+
+	// Thermal
+		B_outFlowT := b_Thermal;
+end
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class PowerDistributionBoard
+// Electrical
+	PowerElec pdb_Elec (init = Working);
+	PowerElec PDB_inFlowE, PDB_outFlowEE, PDB_outFlowEV, PDB_outFlowET, PDB_outFlowETE, PDB_outFlowE, PDB_outFlowE1, PDB_outFlowE2, PDB_outFlowE3, PDB_outFlowE4, PDB_outFlowE5, PDB_outFlowE6, PDB_outFlowE7, PDB_outFlowE8 (reset = Working);
+
+  	parameter Real lambda_minor_elec = 4.0E-06;
+  	parameter Real lambda_major_Elec = 3.0E-06;
+  	parameter Real lambda_hazard_elec = 2.0E-06;
+ 	parameter Real lambda_catas_elec = 1.0E-06;
+
+    event failToMinorElec (delay = exponential(lambda_minor_elec));
+  	event failToMajorElec (delay = exponential(lambda_major_Elec));
+  	event failToHazardElec (delay = exponential(lambda_hazard_elec));
+  	event failToCatasElec (delay = exponential(lambda_catas_elec));
+
+// Thermal
+	ZonalThermal PDB_inFlowT (reset = Working);
+
+// Vibration
+	ZonalVibration PDB_inFlowV (reset = Working);
+
+
+    transition
+	// Electrical
+   	 	failToMinorElec: pdb_Elec == Working -> pdb_Elec := MinorElec;
+   	 	failToMajorElec: pdb_Elec == Working -> pdb_Elec := MajorElec;
+   	 	failToHazardElec: pdb_Elec == Working -> pdb_Elec := HazardElec;
+     	failToCatasElec: pdb_Elec == Working -> pdb_Elec := CatasElec;
+
+	assertion
+	// Electrical
+
+		PDB_outFlowEE := switch {
+    case ((pdb_Elec == Working) and (PDB_inFlowE == Working)) : Working
+    case ((pdb_Elec == MinorElec) and (PDB_inFlowE == Working)) : MinorElec
+    case ((pdb_Elec == Working) and (PDB_inFlowE == MinorElec)) or ((pdb_Elec == MinorElec) and (PDB_inFlowE == MinorElec)) or ((pdb_Elec == MajorElec) and (PDB_inFlowE == Working or PDB_inFlowE == MinorElec)) : MajorElec
+    case ((pdb_Elec == Working) and (PDB_inFlowE == MajorElec)) or ((pdb_Elec == MinorElec) and (PDB_inFlowE == MajorElec)) or ((pdb_Elec == MajorElec) and (PDB_inFlowE == MajorElec)) or ((pdb_Elec == HazardElec) and (PDB_inFlowE == Working or PDB_inFlowE == MinorElec or PDB_inFlowE == MajorElec)) : HazardElec
+    default : CatasElec
+};
+
+		PDB_outFlowET := switch {
+    case ((pdb_Elec == Working) and (PDB_inFlowT == Working)) : Working
+    case ((pdb_Elec == MinorElec) and (PDB_inFlowT == Working)) : MinorElec
+    case ((pdb_Elec == Working) and (PDB_inFlowT == MinorTemp)) or ((pdb_Elec == MinorElec) and (PDB_inFlowT == MinorTemp)) or ((pdb_Elec == MajorElec) and (PDB_inFlowT == Working or PDB_inFlowT == MinorTemp)) : MajorElec
+    case ((pdb_Elec == Working) and (PDB_inFlowT == MajorTemp)) or ((pdb_Elec == MinorElec) and (PDB_inFlowT == MajorTemp)) or ((pdb_Elec == MajorElec) and (PDB_inFlowT == MajorTemp)) or ((pdb_Elec == HazardElec) and (PDB_inFlowT == Working or PDB_inFlowT == MinorTemp or PDB_inFlowT == MajorTemp)) : HazardElec
+    default : CatasElec
+};
+
+		PDB_outFlowEV := switch {
+    case ((pdb_Elec == Working) and (PDB_inFlowV == Working)) : Working
+    case ((pdb_Elec == MinorElec) and (PDB_inFlowV == Working)) : MinorElec
+    case ((pdb_Elec == Working) and (PDB_inFlowV == MinorVibra)) or ((pdb_Elec == MinorElec) and (PDB_inFlowV == MinorVibra)) or ((pdb_Elec == MajorElec) and (PDB_inFlowV == Working or PDB_inFlowV == MinorVibra)) : MajorElec
+    case ((pdb_Elec == Working) and (PDB_inFlowV == MajorVibra)) or ((pdb_Elec == MinorElec) and (PDB_inFlowV == MajorVibra)) or ((pdb_Elec == MajorElec) and (PDB_inFlowV == MajorVibra)) or ((pdb_Elec == HazardElec) and (PDB_inFlowV == Working or PDB_inFlowV == MinorVibra or PDB_inFlowV == MajorVibra)) : HazardElec
+    default : CatasElec
+};
+
+		PDB_outFlowETE := switch {
+    case ((PDB_outFlowET == Working) and (PDB_outFlowEE == Working)) : Working
+    case ((PDB_outFlowET == Working) and (PDB_outFlowEE == MinorElec)) or ((PDB_outFlowET == MinorElec) and (PDB_outFlowEE == Working or PDB_outFlowEE == MinorElec)) : MinorElec
+    case ((PDB_outFlowET == Working) and (PDB_outFlowEE == MajorElec)) or ((PDB_outFlowET == MinorElec) and (PDB_outFlowEE == MajorElec)) or ((PDB_outFlowET == MajorElec) and (PDB_outFlowEE == Working or PDB_outFlowEE == MinorElec or PDB_outFlowEE == MajorElec)) : MajorElec
+    case ((PDB_outFlowET == Working) and (PDB_outFlowEE == HazardElec)) or ((PDB_outFlowET == MinorElec) and (PDB_outFlowEE == HazardElec)) or ((PDB_outFlowET == MajorElec) and (PDB_outFlowEE == HazardElec)) or ((PDB_outFlowET == HazardElec) and (PDB_outFlowEE == Working or PDB_outFlowEE == MinorElec or PDB_outFlowEE == MajorElec or PDB_outFlowEE == HazardElec)) : HazardElec
+    default : CatasElec
+};
+
+
+		PDB_outFlowE := switch {
+    case ((PDB_outFlowEV == Working) and (PDB_outFlowETE == Working)) : Working
+    case ((PDB_outFlowEV == Working) and (PDB_outFlowETE == MinorElec)) or ((PDB_outFlowEV == MinorElec) and (PDB_outFlowETE == Working or PDB_outFlowETE == MinorElec)) : MinorElec
+    case ((PDB_outFlowEV == Working) and (PDB_outFlowETE == MajorElec)) or ((PDB_outFlowEV == MinorElec) and (PDB_outFlowETE == MajorElec)) or ((PDB_outFlowEV == MajorElec) and (PDB_outFlowETE == Working or PDB_outFlowETE == MinorElec or PDB_outFlowETE == MajorElec)) : MajorElec
+    case ((PDB_outFlowEV == Working) and (PDB_outFlowETE == HazardElec)) or ((PDB_outFlowEV == MinorElec) and (PDB_outFlowETE == HazardElec)) or ((PDB_outFlowEV == MajorElec) and (PDB_outFlowETE == HazardElec)) or ((PDB_outFlowEV == HazardElec) and (PDB_outFlowETE == Working or PDB_outFlowETE == MinorElec or PDB_outFlowETE == MajorElec or PDB_outFlowETE == HazardElec)) : HazardElec
+    default : CatasElec
+};
+
+
+		PDB_outFlowE1 := PDB_outFlowE; //To FC
+		PDB_outFlowE2 := PDB_outFlowE;// To FS
+		PDB_outFlowE3 := PDB_outFlowE;// To ESC1
+		PDB_outFlowE4 := PDB_outFlowE;// To ESC2
+		PDB_outFlowE5 := PDB_outFlowE;// To ESC3
+		PDB_outFlowE6 := PDB_outFlowE;// To ESC4
+		PDB_outFlowE7 := PDB_outFlowE;// To ESC5
+		PDB_outFlowE8 := PDB_outFlowE;// To ESC6
+
+end
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class FlightController
+// Data
+	SignalExc f_Data (init = Working);
+	SignalExc F_inFlowD (reset = Working);
+	SignalExc F_outFlowD, F_outFlowD1, F_outFlowD2, F_outFlowD3, F_outFlowD4, F_outFlowD5, F_outFlowD6, F_outFlowD7 (reset = Working);
+	SignalExc F_outFlowDE, F_outFlowDT, F_outFlowDD, F_outFlowDV, F_outFlowDET, F_outFlowDDV (reset = Working);
+
+	parameter Real lambda_minor_delay = 2.0E-03;
+	parameter Real lambda_major_delay = 2.0E-03;
+	parameter Real lambda_hazard_delay = 1.0E-03;
+	parameter Real lambda_catas_data = 5.0E-04;
+
+	event failToMinorDelay (delay = exponential(lambda_minor_delay));
+	event failToMajorDelay (delay = exponential(lambda_major_delay));
+	event failToHazardDelay (delay = exponential(lambda_hazard_delay));
+	event failToCatasData (delay = exponential(lambda_catas_data));
+
+// Electrical
+	PowerElec F_inFlowE (reset = Working); 
+
+// Thermal
+	ZonalThermal F_inFlowT (reset = Working);
+
+// Vibration
+	ZonalVibration F_inFlowV (reset = Working);
+
+  transition
+	// Data
+        failToMinorDelay: f_Data == Working -> f_Data := MinorDelay;
+        failToMajorDelay: f_Data == Working -> f_Data := MajorDelay;
+        failToHazardDelay: f_Data == Working -> f_Data := HazardDelay;
+        failToCatasData: f_Data == Working -> f_Data := CatasData;	
+
+	assertion
+	
+// Electrical
+	F_outFlowDE := switch {
+    case ((f_Data == Working) and (F_inFlowE == Working)) : Working
+    case ((f_Data == MinorDelay) and (F_inFlowE == Working)) : MinorDelay
+    case ((f_Data == Working) and (F_inFlowE == MinorElec)) or ((f_Data == MinorDelay) and (F_inFlowE == MinorElec)) or ((f_Data == MajorDelay) and (F_inFlowE == Working or F_inFlowE == MinorElec)) : MajorDelay
+    case ((f_Data == Working) and (F_inFlowE == MajorElec)) or ((f_Data == MinorDelay) and (F_inFlowE == MajorElec)) or ((f_Data == MajorDelay) and (F_inFlowE == MajorElec)) or ((f_Data == HazardDelay) and (F_inFlowE == Working or F_inFlowE == MinorElec or F_inFlowE == MajorElec)) : HazardDelay
+    default : CatasData
+};
+
+// Thermal
+	F_outFlowDT := switch {
+    case ((f_Data == Working) and (F_inFlowT == Working)) : Working
+    case ((f_Data == MinorDelay) and (F_inFlowT == Working)) : MinorDelay
+    case ((f_Data == Working) and (F_inFlowT == MinorTemp)) or ((f_Data == MinorDelay) and (F_inFlowT == MinorTemp)) or ((f_Data == MajorDelay) and (F_inFlowT == Working or F_inFlowT == MinorTemp)) : MajorDelay
+    case ((f_Data == Working) and (F_inFlowT == MajorTemp)) or ((f_Data == MinorDelay) and (F_inFlowT == MajorTemp)) or ((f_Data == MajorDelay) and (F_inFlowT == MajorTemp)) or ((f_Data == HazardDelay) and (F_inFlowT == Working or F_inFlowT == MinorTemp or F_inFlowT == MajorTemp)) : HazardDelay
+    default : CatasData
+};
+
+// Vibration
+	F_outFlowDV := switch {
+    case ((f_Data == Working) and (F_inFlowV == Working)) : Working
+    case ((f_Data == MinorDelay) and (F_inFlowV == Working)) : MinorDelay
+    case ((f_Data == Working) and (F_inFlowV == MinorVibra)) or ((f_Data == MinorDelay) and (F_inFlowV == MinorVibra)) or ((f_Data == MajorDelay) and (F_inFlowV == Working or F_inFlowV == MinorVibra)) : MajorDelay
+    case ((f_Data == Working) and (F_inFlowV == MajorVibra)) or ((f_Data == MinorDelay) and (F_inFlowV == MajorVibra)) or ((f_Data == MajorDelay) and (F_inFlowV == MajorVibra)) or ((f_Data == HazardDelay) and (F_inFlowV == Working or F_inFlowV == MinorVibra or F_inFlowV == MajorVibra)) : HazardDelay
+    default : CatasData
+};	
+
+// Data-FS
+F_outFlowDD := switch {
+    case ((f_Data == Working) and (F_inFlowD == Working)) : Working
+    case ((f_Data == MinorDelay) and (F_inFlowD == Working)) : MinorDelay
+    case ((f_Data == Working) and (F_inFlowD == MinorDelay)) or ((f_Data == MinorDelay) and (F_inFlowD == MinorDelay)) or ((f_Data == MajorDelay) and (F_inFlowD == Working or F_inFlowD == MinorDelay)) : MajorDelay
+    case ((f_Data == Working) and (F_inFlowD == MajorDelay)) or ((f_Data == MinorDelay) and (F_inFlowD == MajorDelay)) or ((f_Data == MajorDelay) and (F_inFlowD == MajorDelay)) or ((f_Data == HazardDelay) and (F_inFlowD == Working or F_inFlowD == MinorDelay or F_inFlowD == MajorDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+// Elec-Thermal
+	F_outFlowDET := switch {
+    case ((F_outFlowDE == Working) and (F_outFlowDT == Working)) : Working
+    case ((F_outFlowDE == Working) and (F_outFlowDT == MinorDelay)) or ((F_outFlowDE == MinorDelay) and (F_outFlowDT == Working or F_outFlowDT == MinorDelay)) : MinorDelay
+    case ((F_outFlowDE == Working) and (F_outFlowDT == MajorDelay)) or ((F_outFlowDE == MinorDelay) and (F_outFlowDT == MajorDelay)) or ((F_outFlowDE == MajorDelay) and (F_outFlowDT == Working or F_outFlowDT == MinorDelay or F_outFlowDT == MajorDelay)) : MajorDelay
+    case ((F_outFlowDE == Working) and (F_outFlowDT == HazardDelay)) or ((F_outFlowDE == MinorDelay) and (F_outFlowDT == HazardDelay)) or ((F_outFlowDE == MajorDelay) and (F_outFlowDT == HazardDelay)) or ((F_outFlowDE == HazardDelay) and (F_outFlowDT == Working or F_outFlowDT == MinorDelay or F_outFlowDT == MajorDelay or F_outFlowDT == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+// Data-Vibration
+		F_outFlowDDV := switch {
+    case ((F_outFlowDV == Working) and (F_outFlowDD == Working)) : Working
+    case ((F_outFlowDV == Working) and (F_outFlowDD == MinorDelay)) or ((F_outFlowDV == MinorDelay) and (F_outFlowDD == Working or F_outFlowDD == MinorDelay)) : MinorDelay
+    case ((F_outFlowDV == Working) and (F_outFlowDD == MajorDelay)) or ((F_outFlowDV == MinorDelay) and (F_outFlowDD == MajorDelay)) or ((F_outFlowDV == MajorDelay) and (F_outFlowDD == Working or F_outFlowDD == MinorDelay or F_outFlowDD == MajorDelay)) : MajorDelay
+    case ((F_outFlowDV == Working) and (F_outFlowDD == HazardDelay)) or ((F_outFlowDV == MinorDelay) and (F_outFlowDD == HazardDelay)) or ((F_outFlowDV == MajorDelay) and (F_outFlowDD == HazardDelay)) or ((F_outFlowDV == HazardDelay) and (F_outFlowDD == Working or F_outFlowDD == MinorDelay or F_outFlowDD == MajorDelay or F_outFlowDD == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+//Data
+		F_outFlowD := switch {
+    case ((F_outFlowDDV == Working) and (F_outFlowDET == Working)) : Working
+    case ((F_outFlowDDV == Working) and (F_outFlowDET == MinorDelay)) or ((F_outFlowDDV == MinorDelay) and (F_outFlowDET == Working or F_outFlowDET == MinorDelay)) : MinorDelay
+    case ((F_outFlowDDV == Working) and (F_outFlowDET == MajorDelay)) or ((F_outFlowDDV == MinorDelay) and (F_outFlowDET == MajorDelay)) or ((F_outFlowDDV == MajorDelay) and (F_outFlowDET == Working or F_outFlowDET == MinorDelay or F_outFlowDET == MajorDelay)) : MajorDelay
+    case ((F_outFlowDDV == Working) and (F_outFlowDET == HazardDelay)) or ((F_outFlowDDV == MinorDelay) and (F_outFlowDET == HazardDelay)) or ((F_outFlowDDV == MajorDelay) and (F_outFlowDET == HazardDelay)) or ((F_outFlowDDV == HazardDelay) and (F_outFlowDET == Working or F_outFlowDET == MinorDelay or F_outFlowDET == MajorDelay or F_outFlowDET == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+		F_outFlowD1 := F_outFlowD;// To ESC1
+		F_outFlowD2 := F_outFlowD;// To ESC2
+		F_outFlowD3 := F_outFlowD;// To ESC3
+		F_outFlowD4 := F_outFlowD;// To ESC4
+		F_outFlowD5 := F_outFlowD;// To ESC5
+		F_outFlowD6 := F_outFlowD;// To ESC6
+	
+
+end
+///////////////////////////////////////////////////////////////////////////////
+
+class FlightSensor
+
+// Electrical
+	PowerElec S_inFlowE (reset = Working);
+
+// Data
+	SignalExc s_Data (init = Working); 
+	SignalExc S_inFlowD, S_outFlowD, S_outFlowDE, S_outFlowDT, S_outFlowDV, S_outFlowDET (reset = Working); 
+
+	parameter Real lambda_minor_delay = 1.0e-4;
+	parameter Real lambda_major_delay = 9.0e-5;
+	parameter Real lambda_hazard_delay = 6.0e-5;
+	parameter Real lambda_catas_data = 3.0e-5;
+
+
+	event failToMinorDelay (delay = exponential(lambda_minor_delay));
+	event failToMajorDelay (delay = exponential(lambda_major_delay));
+	event failToHazardDelay (delay = exponential(lambda_hazard_delay));
+	event failToCatasData (delay = exponential(lambda_catas_data));
+
+// Thermal
+	ZonalThermal S_inFlowT (reset = Working); 
+
+// Vibration
+	ZonalVibration S_inFlowV (reset = Working);
+
+
+  transition
+	// Data
+        failToMinorDelay: s_Data == Working -> s_Data := MinorDelay;
+        failToMajorDelay: s_Data == Working -> s_Data := MajorDelay;
+        failToHazardDelay: s_Data == Working -> s_Data := HazardDelay;
+        failToCatasData: s_Data == Working -> s_Data := CatasData;	
+
+	assertion
+
+// Electrical
+		S_outFlowDE := switch {
+    case ((s_Data == Working) and (S_inFlowE == Working)) : Working
+    case ((s_Data == MinorDelay) and (S_inFlowE == Working)) : MinorDelay
+    case ((s_Data == Working) and (S_inFlowE == MinorElec)) or ((s_Data == MinorDelay) and (S_inFlowE == MinorElec)) or ((s_Data == MajorDelay) and (S_inFlowE == Working or S_inFlowE == MinorElec)) : MajorDelay
+    case ((s_Data == Working) and (S_inFlowE == MajorElec)) or ((s_Data == MinorDelay) and (S_inFlowE == MajorElec)) or ((s_Data == MajorDelay) and (S_inFlowE == MajorElec)) or ((s_Data == HazardDelay) and (S_inFlowE == Working or S_inFlowE == MinorElec or S_inFlowE == MajorElec)) : HazardDelay
+    default : CatasData
+};
+		
+	
+// Termal
+		S_outFlowDT := switch {
+    case ((s_Data == Working) and (S_inFlowT == Working)) : Working
+    case ((s_Data == MinorDelay) and (S_inFlowT == Working)) : MinorDelay
+    case ((s_Data == Working) and (S_inFlowT == MinorTemp)) or ((s_Data == MinorDelay) and (S_inFlowT == MinorTemp)) or ((s_Data == MajorDelay) and (S_inFlowT == Working or S_inFlowT == MinorTemp)) : MajorDelay
+    case ((s_Data == Working) and (S_inFlowT == MajorTemp)) or ((s_Data == MinorDelay) and (S_inFlowT == MajorTemp)) or ((s_Data == MajorDelay) and (S_inFlowT == MajorTemp)) or ((s_Data == HazardDelay) and (S_inFlowT == Working or S_inFlowT == MinorTemp or S_inFlowT == MajorTemp)) : HazardDelay
+    default : CatasData
+};
+
+
+// Vibration
+		S_outFlowDV := switch {
+    case ((s_Data == Working) and (S_inFlowV == Working)) : Working
+    case ((s_Data == MinorDelay) and (S_inFlowV == Working)) : MinorDelay
+    case ((s_Data == Working) and (S_inFlowV == MinorVibra)) or ((s_Data == MinorDelay) and (S_inFlowV == MinorVibra)) or ((s_Data == MajorDelay) and (S_inFlowV == Working or S_inFlowV == MinorVibra)) : MajorDelay
+    case ((s_Data == Working) and (S_inFlowV == MajorVibra)) or ((s_Data == MinorDelay) and (S_inFlowV == MajorVibra)) or ((s_Data == MajorDelay) and (S_inFlowV == MajorVibra)) or ((s_Data == HazardDelay) and (S_inFlowV == Working or S_inFlowV == MinorVibra or S_inFlowV == MajorVibra)) : HazardDelay
+    default : CatasData
+};
+
+
+// Data
+		S_outFlowDET := switch {
+    case ((S_outFlowDE == Working) and (S_outFlowDT == Working)) : Working
+    case ((S_outFlowDE == Working) and (S_outFlowDT == MinorDelay)) or ((S_outFlowDE == MinorDelay) and (S_outFlowDT == Working or S_outFlowDT == MinorDelay)) : MinorDelay
+    case ((S_outFlowDE == Working) and (S_outFlowDT == MajorDelay)) or ((S_outFlowDE == MinorDelay) and (S_outFlowDT == MajorDelay)) or ((S_outFlowDE == MajorDelay) and (S_outFlowDT == Working or S_outFlowDT == MinorDelay or S_outFlowDT == MajorDelay)) : MajorDelay
+    case ((S_outFlowDE == Working) and (S_outFlowDT == HazardDelay)) or ((S_outFlowDE == MinorDelay) and (S_outFlowDT == HazardDelay)) or ((S_outFlowDE == MajorDelay) and (S_outFlowDT == HazardDelay)) or ((S_outFlowDE == HazardDelay) and (S_outFlowDT == Working or S_outFlowDT == MinorDelay or S_outFlowDT == MajorDelay or S_outFlowDT == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+		S_outFlowD := switch {
+    case ((S_outFlowDV == Working) and (S_outFlowDET == Working)) : Working
+    case ((S_outFlowDV == Working) and (S_outFlowDET == MinorDelay)) or ((S_outFlowDV == MinorDelay) and (S_outFlowDET == Working or S_outFlowDET == MinorDelay)) : MinorDelay
+    case ((S_outFlowDV == Working) and (S_outFlowDET == MajorDelay)) or ((S_outFlowDV == MinorDelay) and (S_outFlowDET == MajorDelay)) or ((S_outFlowDV == MajorDelay) and (S_outFlowDET == Working or S_outFlowDET == MinorDelay or S_outFlowDET == MajorDelay)) : MajorDelay
+    case ((S_outFlowDV == Working) and (S_outFlowDET == HazardDelay)) or ((S_outFlowDV == MinorDelay) and (S_outFlowDET == HazardDelay)) or ((S_outFlowDV == MajorDelay) and (S_outFlowDET == HazardDelay)) or ((S_outFlowDV == HazardDelay) and (S_outFlowDET == Working or S_outFlowDET == MinorDelay or S_outFlowDET == MajorDelay or S_outFlowDET == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+end
+
+///////////////////////////////////////////////////////////////////////////////
+
+class ElectronicSpeedControll
+
+// Electrical
+	PowerElec e_Elec (init = Working); 
+	PowerElec E_inFlowE, E_outFlowE (reset = Working);
+
+  	parameter Real lambda_minor_elec = 1.5E-04;
+  	parameter Real lambda_major_Elec = 1.0E-04;
+  	parameter Real lambda_hazard_elec = 5.0E-05;
+ 	parameter Real lambda_catas_elec = 3.0E-05;
+
+    event failToMinorElec (delay = exponential(lambda_minor_elec));
+  	event failToMajorElec (delay = exponential(lambda_major_Elec));
+  	event failToHazardElec (delay = exponential(lambda_hazard_elec));
+  	event failToCatasElec (delay = exponential(lambda_catas_elec));
+
+
+// Data
+	SignalExc e_Data (init = Working); 
+	SignalExc E_inFlowD, E_outFlowD (reset = Working); 
+	SignalExc E_outFlowDE, E_outFlowDT, E_outFlowDD, E_outFlowDV, E_outFlowDDV, E_outFlowDET (reset = Working); 
+
+	parameter Real lambda_minor_delay = 1.5E-04;
+	parameter Real lambda_major_delay = 1.0E-04;
+	parameter Real lambda_hazard_delay = 5.0E-05;
+	parameter Real lambda_catas_data = 4.0E-05;
+
+	event failToMinorDelay (delay = exponential(lambda_minor_delay));
+	event failToMajorDelay (delay = exponential(lambda_major_delay));
+	event failToHazardDelay (delay = exponential(lambda_hazard_delay));
+	event failToCatasData (delay = exponential(lambda_catas_data));
+
+// Thermal
+	ZonalThermal e_Thermal (init = Working); 
+	ZonalThermal E_inFlowT, E_outFlowT (reset = Working); 
+
+	parameter Real lambda_minor_temp = 1.5E-04;
+	parameter Real lambda_major_temp = 1.0E-04;
+	parameter Real lambda_hazard_temp = 5.0E-05;
+	parameter Real lambda_catas_temp = 3.0E-05;
+
+	event failToMinorTemp (delay = exponential(lambda_minor_temp));
+	event failToMajorTemp (delay = exponential(lambda_major_temp));
+	event failToHazardTemp (delay = exponential(lambda_hazard_temp));
+	event failToCatasTemp (delay = exponential(lambda_catas_temp));
+
+// Vibration
+	ZonalVibration E_inFlowV (reset = Working);
+
+  transition
+	// Electrical
+   	 	failToMinorElec: e_Elec == Working -> e_Elec := MinorElec;
+   	 	failToMajorElec: e_Elec == Working -> e_Elec := MajorElec;
+   	 	failToHazardElec: e_Elec == Working -> e_Elec := HazardElec;
+     	failToCatasElec: e_Elec == Working -> e_Elec := CatasElec;
+	// Data
+        failToMinorDelay: e_Data == Working -> e_Data := MinorDelay;
+        failToMajorDelay: e_Data == Working -> e_Data := MajorDelay;
+        failToHazardDelay: e_Data == Working -> e_Data := HazardDelay;
+        failToCatasData: e_Data == Working -> e_Data := CatasData;	
+	// Termal
+		failToMinorTemp: e_Thermal == Working -> e_Thermal := MinorTemp;
+        failToMajorTemp: e_Thermal == Working -> e_Thermal := MajorTemp;
+        failToHazardTemp: e_Thermal == Working -> e_Thermal := HazardTemp;
+        failToCatasTemp: e_Thermal == Working -> e_Thermal := CatasTemp;
+
+
+	assertion
+
+	// Elec (Battery + inherent)
+		E_outFlowE := switch {
+    case ((e_Elec == Working) and (E_inFlowE == Working)) : Working
+    case ((e_Elec == MinorElec) and (E_inFlowE == Working)) : MinorElec
+    case ((e_Elec == Working) and (E_inFlowE == MinorElec)) or ((e_Elec == MinorElec) and (E_inFlowE == MinorElec)) or ((e_Elec == MajorElec) and (E_inFlowE == Working or E_inFlowE == MinorElec)) : MajorElec
+    case ((e_Elec == Working) and (E_inFlowE == MajorElec)) or ((e_Elec == MinorElec) and (E_inFlowE == MajorElec)) or ((e_Elec == MajorElec) and (E_inFlowE == MajorElec)) or ((e_Elec == HazardElec) and (E_inFlowE == Working or E_inFlowE == MinorElec or E_inFlowE == MajorElec)) : HazardElec
+    default : CatasElec
+};
+
+
+
+	// Electrical
+		E_outFlowDE := switch {
+    case ((e_Data == Working) and (E_outFlowE == Working)) : Working
+    case ((e_Data == MinorDelay) and (E_outFlowE == Working)) : MinorDelay
+    case ((e_Data == Working) and (E_outFlowE == MinorElec)) or ((e_Data == MinorDelay) and (E_outFlowE == MinorElec)) or ((e_Data == MajorDelay) and (E_outFlowE == Working or E_outFlowE == MinorElec)) : MajorDelay
+    case ((e_Data == Working) and (E_outFlowE == MajorElec)) or ((e_Data == MinorDelay) and (E_outFlowE == MajorElec)) or ((e_Data == MajorDelay) and (E_outFlowE == MajorElec)) or ((e_Data == HazardDelay) and (E_outFlowE == Working or E_outFlowE == MinorElec or E_outFlowE == MajorElec)) : HazardDelay
+    default : CatasData
+};
+
+	// Thermal-Zone
+		E_outFlowDT := switch {
+    case ((e_Data == Working) and (E_inFlowT == Working)) : Working
+    case ((e_Data == MinorDelay) and (E_inFlowT == Working)) : MinorDelay
+    case ((e_Data == Working) and (E_inFlowT == MinorTemp)) or ((e_Data == MinorDelay) and (E_inFlowT == MinorTemp)) or ((e_Data == MajorDelay) and (E_inFlowT == Working or E_inFlowT == MinorTemp)) : MajorDelay
+    case ((e_Data == Working) and (E_inFlowT == MajorTemp)) or ((e_Data == MinorDelay) and (E_inFlowT == MajorTemp)) or ((e_Data == MajorDelay) and (E_inFlowT == MajorTemp)) or ((e_Data == HazardDelay) and (E_inFlowT == Working or E_inFlowT == MinorTemp or E_inFlowT == MajorTemp)) : HazardDelay
+    default : CatasData
+};
+
+
+	// Data-FC
+		E_outFlowDD := switch {
+    case ((e_Data == Working) and (E_inFlowD == Working)) : Working
+    case ((e_Data == MinorDelay) and (E_inFlowD == Working)) : MinorDelay
+    case ((e_Data == Working) and (E_inFlowD == MinorDelay)) or ((e_Data == MinorDelay) and (E_inFlowD == MinorDelay)) or ((e_Data == MajorDelay) and (E_inFlowD == Working or E_inFlowD == MinorDelay)) : MajorDelay
+    case ((e_Data == Working) and (E_inFlowD == MajorDelay)) or ((e_Data == MinorDelay) and (E_inFlowD == MajorDelay)) or ((e_Data == MajorDelay) and (E_inFlowD == MajorDelay)) or ((e_Data == HazardDelay) and (E_inFlowD == Working or E_inFlowD == MinorDelay or E_inFlowD == MajorDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+	// Vibration-Zone
+		E_outFlowDV := switch {
+    case ((e_Data == Working) and (E_inFlowV == Working)) : Working
+    case ((e_Data == MinorDelay) and (E_inFlowV == Working)) : MinorDelay
+    case ((e_Data == Working) and (E_inFlowV == MinorVibra)) or ((e_Data == MinorDelay) and (E_inFlowV == MinorVibra)) or ((e_Data == MajorDelay) and (E_inFlowV == Working or E_inFlowV == MinorVibra)) : MajorDelay
+    case ((e_Data == Working) and (E_inFlowV == MajorVibra)) or ((e_Data == MinorDelay) and (E_inFlowV == MajorVibra)) or ((e_Data == MajorDelay) and (E_inFlowV == MajorVibra)) or ((e_Data == HazardDelay) and (E_inFlowV == Working or E_inFlowV == MinorVibra or E_inFlowV == MajorVibra)) : HazardDelay
+    default : CatasData
+};
+
+
+	// ESC Output(Data)
+		E_outFlowDET := switch {
+    case ((E_outFlowDT == Working) and (E_outFlowDE == Working)) : Working
+    case ((E_outFlowDT == Working) and (E_outFlowDE == MinorDelay)) or ((E_outFlowDT == MinorDelay) and (E_outFlowDE == Working or E_outFlowDE == MinorDelay)) : MinorDelay
+    case ((E_outFlowDT == Working) and (E_outFlowDE == MajorDelay)) or ((E_outFlowDT == MinorDelay) and (E_outFlowDE == MajorDelay)) or ((E_outFlowDT == MajorDelay) and (E_outFlowDE == Working or E_outFlowDE == MinorDelay or E_outFlowDE == MajorDelay)) : MajorDelay
+    case ((E_outFlowDT == Working) and (E_outFlowDE == HazardDelay)) or ((E_outFlowDT == MinorDelay) and (E_outFlowDE == HazardDelay)) or ((E_outFlowDT == MajorDelay) and (E_outFlowDE == HazardDelay)) or ((E_outFlowDT == HazardDelay) and (E_outFlowDE == Working or E_outFlowDE == MinorDelay or E_outFlowDE == MajorDelay or E_outFlowDE == HazardDelay)) : HazardDelay
+    default : CatasData
+};	
+
+		E_outFlowDDV := switch {
+    case ((E_outFlowDD == Working) and (E_outFlowDV == Working)) : Working
+    case ((E_outFlowDD == Working) and (E_outFlowDV == MinorDelay)) or ((E_outFlowDD == MinorDelay) and (E_outFlowDV == Working or E_outFlowDV == MinorDelay)) : MinorDelay
+    case ((E_outFlowDD == Working) and (E_outFlowDV == MajorDelay)) or ((E_outFlowDD == MinorDelay) and (E_outFlowDV == MajorDelay)) or ((E_outFlowDD == MajorDelay) and (E_outFlowDV == Working or E_outFlowDV == MinorDelay or E_outFlowDV == MajorDelay)) : MajorDelay
+    case ((E_outFlowDD == Working) and (E_outFlowDV == HazardDelay)) or ((E_outFlowDD == MinorDelay) and (E_outFlowDV == HazardDelay)) or ((E_outFlowDD == MajorDelay) and (E_outFlowDV == HazardDelay)) or ((E_outFlowDD == HazardDelay) and (E_outFlowDV == Working or E_outFlowDV == MinorDelay or E_outFlowDV == MajorDelay or E_outFlowDV == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+		E_outFlowD := switch {
+    case ((E_outFlowDDV == Working) and (E_outFlowDET == Working)) : Working
+    case ((E_outFlowDDV == Working) and (E_outFlowDET == MinorDelay)) or ((E_outFlowDDV == MinorDelay) and (E_outFlowDET == Working or E_outFlowDET == MinorDelay)) : MinorDelay
+    case ((E_outFlowDDV == Working) and (E_outFlowDET == MajorDelay)) or ((E_outFlowDDV == MinorDelay) and (E_outFlowDET == MajorDelay)) or ((E_outFlowDDV == MajorDelay) and (E_outFlowDET == Working or E_outFlowDET == MinorDelay or E_outFlowDET == MajorDelay)) : MajorDelay
+    case ((E_outFlowDDV == Working) and (E_outFlowDET == HazardDelay)) or ((E_outFlowDDV == MinorDelay) and (E_outFlowDET == HazardDelay)) or ((E_outFlowDDV == MajorDelay) and (E_outFlowDET == HazardDelay)) or ((E_outFlowDDV == HazardDelay) and (E_outFlowDET == Working or E_outFlowDET == MinorDelay or E_outFlowDET == MajorDelay or E_outFlowDET == HazardDelay)) : HazardDelay
+    default : CatasData
+};
+
+
+
+	// Thermal-Inherent
+		E_outFlowT := e_Thermal;
+end
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+class Motor
+// Mechanical
+	PowerMech m_Mech (init = Working);
+	PowerMech M_outFlowM, M_outFlowME, M_outFlowMT, M_outFlowMD, M_outFlowMV, M_outFlowMVD, M_outFlowMET (reset = Working);
+	PowerMech M_outFlowM1, M_outFlowM2 (reset = Working);
+
+  	parameter Real lambda_minor_mech = 1.5E-05;
+  	parameter Real lambda_major_mech = 1.0E-05;
+  	parameter Real lambda_hazard_mech = 5.0E-06;
+ 	parameter Real lambda_catas_mech = 4.0E-06;
+
+    event failToMinorMech (delay = exponential(lambda_minor_mech));
+  	event failToMajorMech (delay = exponential(lambda_major_mech));
+  	event failToHazardMech (delay = exponential(lambda_hazard_mech));
+  	event failToCatasMech (delay = exponential(lambda_catas_mech));
+
+// Thermal
+	ZonalThermal m_Thermal (init = Working);
+	ZonalThermal M_inFlowT, M_outFlowT (reset = Working);
+
+	parameter Real lambda_minor_temp = 1.5E-05;
+	parameter Real lambda_major_temp = 1.0E-05;
+	parameter Real lambda_hazard_temp = 5.0E-06;
+	parameter Real lambda_catas_temp = 3.0E-06;
+
+	event failToMinorTemp (delay = exponential(lambda_minor_temp));
+	event failToMajorTemp (delay = exponential(lambda_major_temp));
+	event failToHazardTemp (delay = exponential(lambda_hazard_temp));
+	event failToCatasTemp (delay = exponential(lambda_catas_temp));
+
+// Vibration
+	ZonalVibration m_Vibration (init = Working);
+	ZonalVibration M_inFlowV, M_outFlowV (reset = Working);
+
+	parameter Real lambda_minor_vibra = 1.5E-05;
+	parameter Real lambda_major_vibra = 1.0E-05;
+	parameter Real lambda_hazard_vibra = 5.0E-06;
+	parameter Real lambda_catas_vibra = 3.0E-06;
+
+	event failToMinorVibra (delay = exponential(lambda_minor_vibra));
+	event failToMajorVibra (delay = exponential(lambda_major_vibra));
+	event failToHazardVibra (delay = exponential(lambda_hazard_vibra));
+	event failToCatasVibra (delay = exponential(lambda_catas_vibra));
+
+// Electrical
+	PowerElec M_inFlowE (reset = Working); 
+// Data
+	SignalExc M_inFlowD (reset = Working); 
+
+  transition
+	// Mechanical
+		failToMinorMech: m_Mech == Working -> m_Mech := MinorMech;
+        failToMajorMech: m_Mech == Working -> m_Mech := MajorMech;
+        failToHazardMech: m_Mech == Working -> m_Mech := HazardMech;
+        failToCatasMech: m_Mech == Working -> m_Mech := CatasMech;
+	// Thermal
+		failToMinorTemp: m_Thermal == Working -> m_Thermal := MinorTemp;
+        failToMajorTemp: m_Thermal == Working -> m_Thermal := MajorTemp;
+        failToHazardTemp: m_Thermal == Working -> m_Thermal := HazardTemp;
+        failToCatasTemp: m_Thermal == Working -> m_Thermal := CatasTemp;
+	// Vibration
+		failToMinorVibra: m_Vibration == Working -> m_Vibration := MinorVibra;
+        failToMajorVibra: m_Vibration == Working -> m_Vibration := MajorVibra;
+        failToHazardVibra: m_Vibration == Working -> m_Vibration := HazardVibra;
+        failToCatasVibra: m_Vibration == Working -> m_Vibration := CatasVibra;
+
+	assertion
+	// The Mechanical-output of Motor is impacted by Mech-Inherent, Elec-input, Data-input and Thermal-input
+
+// Electrical
+M_outFlowME := switch {
+    case ((m_Mech == Working) and (M_inFlowE == Working)) : Working
+    case ((m_Mech == Working) and (M_inFlowE == MinorElec)) or ((m_Mech == MinorMech) and (M_inFlowE == Working or M_inFlowE == MinorElec)) : MinorMech
+    case ((m_Mech == Working) and (M_inFlowE == MajorElec)) or ((m_Mech == MinorMech) and (M_inFlowE == MajorElec)) or ((m_Mech == MajorMech) and (M_inFlowE == Working or M_inFlowE == MinorElec or M_inFlowE == MajorElec)) : MajorMech
+    case ((m_Mech == Working) and (M_inFlowE == HazardElec)) or ((m_Mech == MinorMech) and (M_inFlowE == HazardElec)) or ((m_Mech == MajorMech) and (M_inFlowE == HazardElec)) or ((m_Mech == HazardMech) and (M_inFlowE == Working or M_inFlowE == MinorElec or M_inFlowE == MajorElec or M_inFlowE == HazardElec)) : HazardMech
+    default : CatasMech
+};
+
+// Data
+M_outFlowMD := switch {
+    case ((m_Mech == Working) and (M_inFlowD == Working)) : Working
+    case ((m_Mech == MinorMech) and (M_inFlowD == Working)) : MinorMech
+    case ((m_Mech == Working) and (M_inFlowD == MinorDelay)) or ((m_Mech == MinorMech) and (M_inFlowD == MinorDelay)) or ((m_Mech == MajorMech) and (M_inFlowD == Working or M_inFlowD == MinorDelay)) : MajorMech
+    case ((m_Mech == Working) and (M_inFlowD == MajorDelay)) or ((m_Mech == MinorMech) and (M_inFlowD == MajorDelay)) or ((m_Mech == MajorMech) and (M_inFlowD == MajorDelay)) or ((m_Mech == HazardMech) and (M_inFlowD == Working or M_inFlowD == MinorDelay or M_inFlowD == MajorDelay)) : HazardMech
+    default : CatasMech
+};
+
+// Thermal
+M_outFlowMT := switch {
+    case ((m_Mech == Working) and (M_inFlowT == Working)) : Working
+    case ((m_Mech == Working) and (M_inFlowT == MinorTemp)) or ((m_Mech == MinorMech) and (M_inFlowT == Working)) : MinorMech
+    case ((m_Mech == Working) and (M_inFlowT == MajorTemp)) or ((m_Mech == MinorMech) and (M_inFlowT == MinorTemp or M_inFlowT == MajorTemp)) or ((m_Mech == MajorMech) and (M_inFlowT == Working or M_inFlowT == MinorTemp)) : MajorMech
+    case ((m_Mech == Working) and (M_inFlowT == HazardTemp)) or ((m_Mech == MinorMech) and (M_inFlowT == HazardTemp)) or ((m_Mech == MajorMech) and (M_inFlowT == MajorTemp or M_inFlowT == HazardTemp)) or ((m_Mech == HazardMech) and (M_inFlowT == Working or M_inFlowT == MinorTemp or M_inFlowT == MajorTemp)) : HazardMech
+    default : CatasMech
+};
+
+// vibration
+M_outFlowMV := switch {
+    case ((m_Mech == Working) and (M_inFlowV == Working)) : Working
+    case ((m_Mech == MinorMech) and (M_inFlowV == Working)) : MinorMech
+    case ((m_Mech == Working) and (M_inFlowV == MinorVibra)) or ((m_Mech == MinorMech) and (M_inFlowV == MinorVibra)) or ((m_Mech == MajorMech) and (M_inFlowV == Working or M_inFlowV == MinorVibra)) : MajorMech
+    case ((m_Mech == Working) and (M_inFlowV == MajorVibra)) or ((m_Mech == MinorMech) and (M_inFlowV == MajorVibra)) or ((m_Mech == MajorMech) and (M_inFlowV == MajorVibra)) or ((m_Mech == HazardMech) and (M_inFlowV == Working or M_inFlowV == MinorVibra or M_inFlowV == MajorVibra)) : HazardMech
+    default : CatasMech
+};
+
+// Thermal+Elec
+M_outFlowMET := switch {
+    case ((M_outFlowME == Working) and (M_outFlowMT == Working)) : Working
+    case ((M_outFlowME == Working) and (M_outFlowMT == MinorMech)) or ((M_outFlowME == MinorMech) and (M_outFlowMT == Working or M_outFlowMT == MinorMech)) : MinorMech
+    case ((M_outFlowME == Working) and (M_outFlowMT == MajorMech)) or ((M_outFlowME == MinorMech) and (M_outFlowMT == MajorMech)) or ((M_outFlowME == MajorMech) and (M_outFlowMT == Working or M_outFlowMT == MinorMech or M_outFlowMT == MajorMech)) : MajorMech
+    case ((M_outFlowME == Working) and (M_outFlowMT == HazardMech)) or ((M_outFlowME == MinorMech) and (M_outFlowMT == HazardMech)) or ((M_outFlowME == MajorMech) and (M_outFlowMT == HazardMech)) or ((M_outFlowME == HazardMech) and (M_outFlowMT == Working or M_outFlowMT == MinorMech or M_outFlowMT == MajorMech or M_outFlowMT == HazardMech)) : HazardMech
+    default : CatasMech
+};
+
+// Data+Vibration
+M_outFlowMVD := switch {
+    case ((M_outFlowMV == Working) and (M_outFlowMD == Working)) : Working
+    case ((M_outFlowMV == Working) and (M_outFlowMD == MinorMech)) or ((M_outFlowMV == MinorMech) and (M_outFlowMD == Working or M_outFlowMD == MinorMech)) : MinorMech
+    case ((M_outFlowMV == Working) and (M_outFlowMD == MajorMech)) or ((M_outFlowMV == MinorMech) and (M_outFlowMD == MajorMech)) or ((M_outFlowMV == MajorMech) and (M_outFlowMD == Working or M_outFlowMD == MinorMech or M_outFlowMD == MajorMech)) : MajorMech
+    case ((M_outFlowMV == Working) and (M_outFlowMD == HazardMech)) or ((M_outFlowMV == MinorMech) and (M_outFlowMD == HazardMech)) or ((M_outFlowMV == MajorMech) and (M_outFlowMD == HazardMech)) or ((M_outFlowMV == HazardMech) and (M_outFlowMD == Working or M_outFlowMD == MinorMech or M_outFlowMD == MajorMech or M_outFlowMD == HazardMech)) : HazardMech
+    default : CatasMech
+};
+
+
+//Mechanical
+		M_outFlowM := switch {
+    case ((M_outFlowMVD == Working) and (M_outFlowMET == Working)) : Working
+    case ((M_outFlowMVD == Working) and (M_outFlowMET == MinorMech)) or ((M_outFlowMVD == MinorMech) and (M_outFlowMET == Working or M_outFlowMET == MinorMech)) : MinorMech
+    case ((M_outFlowMVD == Working) and (M_outFlowMET == MajorMech)) or ((M_outFlowMVD == MinorMech) and (M_outFlowMET == MajorMech)) or ((M_outFlowMVD == MajorMech) and (M_outFlowMET == Working or M_outFlowMET == MinorMech or M_outFlowMET == MajorMech)) : MajorMech
+    case ((M_outFlowMVD == Working) and (M_outFlowMET == HazardMech)) or ((M_outFlowMVD == MinorMech) and (M_outFlowMET == HazardMech)) or ((M_outFlowMVD == MajorMech) and (M_outFlowMET == HazardMech)) or ((M_outFlowMVD == HazardMech) and (M_outFlowMET == Working or M_outFlowMET == MinorMech or M_outFlowMET == MajorMech or M_outFlowMET == HazardMech)) : HazardMech
+    default : CatasMech
+};		
+
+
+
+	// Thermal
+		M_outFlowT := m_Thermal;
+
+	// Vibration
+		M_outFlowV := m_Vibration;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+class Propeller
+// Mechanical
+	PowerMech p_Mech (init = Working);
+	PowerMech P_inFlowM, P_outFlowM, P_outFlowMM, P_outFlowMV (reset = Working);
+	PowerMech P_outFlowM1, P_outFlowM2 (reset = Working);
+
+  	parameter Real lambda_minor_mech = 1.7E-09;
+  	parameter Real lambda_major_mech = 1.2E-09;
+  	parameter Real lambda_hazard_mech = 7.0E-10;
+ 	parameter Real lambda_catas_mech = 5.0E-10;
+
+    event failToMinorMech (delay = exponential(lambda_minor_mech));
+  	event failToMajorMech (delay = exponential(lambda_major_mech));
+  	event failToHazardMech (delay = exponential(lambda_hazard_mech));
+  	event failToCatasMech (delay = exponential(lambda_catas_mech));
+
+// Vibration
+	ZonalVibration p_Vibration (init = Working);
+	ZonalVibration P_inFlowV, P_outFlowV (reset = Working);
+
+	parameter Real lambda_minor_vibra = 2.3E-09;
+	parameter Real lambda_major_vibra = 1.7E-09;
+	parameter Real lambda_hazard_vibra = 1.2E-09;
+	parameter Real lambda_catas_vibra = 7.0E-10;
+
+	event failToMinorVibra (delay = exponential(lambda_minor_vibra));
+	event failToMajorVibra (delay = exponential(lambda_major_vibra));
+	event failToHazardVibra (delay = exponential(lambda_hazard_vibra));
+	event failToCatasVibra (delay = exponential(lambda_catas_vibra));
+
+
+  transition
+	// Mechanical
+		failToMinorMech: p_Mech == Working -> p_Mech := MinorMech;
+        failToMajorMech: p_Mech == Working -> p_Mech := MajorMech;
+        failToHazardMech: p_Mech == Working -> p_Mech := HazardMech;
+        failToCatasMech: p_Mech == Working -> p_Mech := CatasMech;
+
+	// Vibration
+		failToMinorVibra: p_Vibration == Working -> p_Vibration := MinorVibra;
+        failToMajorVibra: p_Vibration == Working -> p_Vibration := MajorVibra;
+        failToHazardVibra: p_Vibration == Working -> p_Vibration := HazardVibra;
+        failToCatasVibra: p_Vibration == Working -> p_Vibration := CatasVibra;
+
+	assertion
+
+// Mechanical
+		P_outFlowMM := switch {
+    case ((p_Mech == Working) and (P_inFlowM == Working)) : Working
+    case ((p_Mech == MinorMech) and (P_inFlowM == Working)) : MinorMech
+    case ((p_Mech == Working) and (P_inFlowM == MinorMech)) or ((p_Mech == MinorMech) and (P_inFlowM == MinorMech)) or ((p_Mech == MajorMech) and (P_inFlowM == Working or P_inFlowM == MinorMech)) : MajorMech
+    case ((p_Mech == Working) and (P_inFlowM == MajorMech)) or ((p_Mech == MinorMech) and (P_inFlowM == MajorMech)) or ((p_Mech == MajorMech) and (P_inFlowM == MajorMech)) or ((p_Mech == HazardMech) and (P_inFlowM == Working or P_inFlowM == MinorMech or P_inFlowM == MajorMech)) : HazardMech
+    default : CatasMech
+};
+
+// vibration
+	P_outFlowMV := switch {
+    case ((p_Mech == Working) and (P_inFlowV == Working)) : Working
+    case ((p_Mech == MinorMech) and (P_inFlowV == Working)) : MinorMech
+    case ((p_Mech == Working) and (P_inFlowV == MinorVibra)) or ((p_Mech == MinorMech) and (P_inFlowV == MinorVibra)) or ((p_Mech == MajorMech) and (P_inFlowV == Working or P_inFlowV == MinorVibra)) : MajorMech
+    case ((p_Mech == Working) and (P_inFlowV == MajorVibra)) or ((p_Mech == MinorMech) and (P_inFlowV == MajorVibra)) or ((p_Mech == MajorMech) and (P_inFlowV == MajorVibra)) or ((p_Mech == HazardMech) and (P_inFlowV == Working or P_inFlowV == MinorVibra or P_inFlowV == MajorVibra)) : HazardMech
+    default : CatasMech
+};
+
+
+
+//Mechanical
+		P_outFlowM := switch {
+    case ((P_outFlowMV == Working) and (P_outFlowMM == Working)) : Working
+    case ((P_outFlowMV == Working) and (P_outFlowMM == MinorMech)) or ((P_outFlowMV == MinorMech) and (P_outFlowMM == Working or P_outFlowMM == MinorMech)) : MinorMech
+    case ((P_outFlowMV == Working) and (P_outFlowMM == MajorMech)) or ((P_outFlowMV == MinorMech) and (P_outFlowMM == MajorMech)) or ((P_outFlowMV == MajorMech) and (P_outFlowMM == Working or P_outFlowMM == MinorMech or P_outFlowMM == MajorMech)) : MajorMech
+    case ((P_outFlowMV == Working) and (P_outFlowMM == HazardMech)) or ((P_outFlowMV == MinorMech) and (P_outFlowMM == HazardMech)) or ((P_outFlowMV == MajorMech) and (P_outFlowMM == HazardMech)) or ((P_outFlowMV == HazardMech) and (P_outFlowMM == Working or P_outFlowMM == MinorMech or P_outFlowMM == MajorMech or P_outFlowMM == HazardMech)) : HazardMech
+    default : CatasMech
+};
+
+
+	// Vibration
+		P_outFlowV := p_Vibration;
+end
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+class Controllability
+// Control 
+	Control C_outFlowC (reset = Working);
+
+// Mechanical
+	Control C_inFlowM1, C_inFlowM2, C_inFlowM3, C_inFlowM4, C_inFlowM5, C_inFlowM6 (reset = Working);
+	PowerMech Rotor_1, Rotor_2, Rotor_3, Rotor_4, Rotor_5, Rotor_6 (reset = Working);
+
+	
+	assertion
+C_inFlowM1 := switch {
+    case Rotor_1 == CatasMech  : CATCtrl
+    case Rotor_1 == HazardMech : HZDCtrl
+    case Rotor_1 == MajorMech  : MJRCtrl
+    case Rotor_1 == MinorMech  : MNRCtrl
+    default                     : Working 
+ };
+C_inFlowM2 := switch {
+    case Rotor_2 == CatasMech  : CATCtrl
+    case Rotor_2 == HazardMech : HZDCtrl
+    case Rotor_2 == MajorMech  : MJRCtrl
+    case Rotor_2 == MinorMech  : MNRCtrl
+    default                     : Working 
+ };
+C_inFlowM3 := switch {
+    case Rotor_3 == CatasMech  : CATCtrl
+    case Rotor_3 == HazardMech : HZDCtrl
+    case Rotor_3 == MajorMech  : MJRCtrl
+    case Rotor_3 == MinorMech  : MNRCtrl
+    default                     : Working 
+ };
+C_inFlowM4 := switch {
+    case Rotor_4 == CatasMech  : CATCtrl
+    case Rotor_4 == HazardMech : HZDCtrl
+    case Rotor_4 == MajorMech  : MJRCtrl
+    case Rotor_4 == MinorMech  : MNRCtrl
+    default                     : Working 
+ };
+C_inFlowM5 := switch {
+    case Rotor_5 == CatasMech  : CATCtrl
+    case Rotor_5 == HazardMech : HZDCtrl
+    case Rotor_5 == MajorMech  : MJRCtrl
+    case Rotor_5 == MinorMech  : MNRCtrl
+    default                     : Working 
+ }; 
+C_inFlowM6 := switch {
+    case Rotor_6 == CatasMech  : CATCtrl
+    case Rotor_6 == HazardMech : HZDCtrl
+    case Rotor_6 == MajorMech  : MJRCtrl
+    case Rotor_6 == MinorMech  : MNRCtrl
+    default                     : Working 
+ };
+
+C_outFlowC := switch {
+case (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) : Working
+case ((C_inFlowM1 == Working) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == Working) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == Working) and (C_inFlowM5 == Working) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == Working) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == Working) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == Working) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == Working) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl)) and ((C_inFlowM4 == HZDCtrl) or (C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == Working)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == HZDCtrl) or (C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == Working) and (C_inFlowM6 == Working)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == Working) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == Working) and ((C_inFlowM4 == HZDCtrl) or (C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == Working)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == Working) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == Working) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == Working) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == Working) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and (C_inFlowM6 == Working)) or ((C_inFlowM1 == Working) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == Working) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl)) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == Working) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == Working) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == Working) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == Working) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) : MNRCtrl
+case (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == Working) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == Working) and (C_inFlowM5 == Working) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == Working) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl)) and ((C_inFlowM4 == HZDCtrl) or (C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == Working)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and (C_inFlowM2 == Working) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == Working) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == Working) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl)) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and (C_inFlowM6 == Working)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or ((C_inFlowM1 == HZDCtrl) and (C_inFlowM2 == HZDCtrl) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == Working) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl)) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl)) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl))) : MJRCtrl
+case ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and (C_inFlowM4 == HZDCtrl) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and (C_inFlowM6 == HZDCtrl)) or (((C_inFlowM1 == HZDCtrl) or (C_inFlowM1 == MJRCtrl) or (C_inFlowM1 == MNRCtrl) or (C_inFlowM1 == Working)) and (C_inFlowM2 == HZDCtrl) and ((C_inFlowM3 == HZDCtrl) or (C_inFlowM3 == MJRCtrl) or (C_inFlowM3 == MNRCtrl) or (C_inFlowM3 == Working)) and (C_inFlowM4 == HZDCtrl) and ((C_inFlowM5 == HZDCtrl) or (C_inFlowM5 == MJRCtrl) or (C_inFlowM5 == MNRCtrl) or (C_inFlowM5 == Working)) and (C_inFlowM6 == HZDCtrl)) or ((C_inFlowM1 == HZDCtrl) and ((C_inFlowM2 == HZDCtrl) or (C_inFlowM2 == MJRCtrl) or (C_inFlowM2 == MNRCtrl) or (C_inFlowM2 == Working)) and (C_inFlowM3 == HZDCtrl) and ((C_inFlowM4 == HZDCtrl) or (C_inFlowM4 == MJRCtrl) or (C_inFlowM4 == MNRCtrl) or (C_inFlowM4 == Working)) and (C_inFlowM5 == HZDCtrl) and ((C_inFlowM6 == MJRCtrl) or (C_inFlowM6 == MNRCtrl) or (C_inFlowM6 == Working))) : HZDCtrl
+    default : CATCtrl
+};
+
+
+end
+
+///////////////////////////////////////////////////////////////////////////////
+
+class Zonal
+
+// Thermal
+//Input
+	ZonalThermal Z_inFlowT1, Z_inFlowT2 (reset = Working);
+	ZonalThermal Z_inFlowT3, Z_inFlowT4, Z_inFlowT5, Z_inFlowT6, Z_inFlowT7, Z_inFlowT8, Z_inFlowT9, Z_inFlowT10, Z_inFlowT11, Z_inFlowT12, Z_inFlowT13 (reset = Working);
+
+// For exh Component which has the inherent failure mode of Thermal, nees the special output of the component (e.g. battery and motor)
+
+//Output
+	ZonalThermal Z_outFlowT, Z_outFlowT1, Z_outFlowT2 (reset = Working);
+	ZonalThermal Z_outFlowT3, Z_outFlowT4, Z_outFlowT5, Z_outFlowT6, Z_outFlowT7 (reset = Working);
+	ZonalThermal Z_outFlowT8, Z_outFlowT9, Z_outFlowT10, Z_outFlowT11, Z_outFlowTT12, Z_outFlowT13, Z_outFlowTT14, Z_outFlowT15, Z_outFlowT16, Z_outFlowT17 (reset = Working);
+
+	ZonalThermal Z_outFlowT12, Z_outFlowT34, Z_outFlowT56, Z_outFlowT78, Z_outFlowT910, Z_outFlowT112, Z_outFlowT912, Z_outFlowT14, Z_outFlowT58, Z_outFlowT18, Z_outFlowT913 (reset = Working);
+
+
+// Vibration
+//Inputs
+	ZonalVibration Z_inFlowV1, Z_inFlowV2 (reset = Working);
+	ZonalVibration Z_inFlowV3, Z_inFlowV4, Z_inFlowV5, Z_inFlowV6, Z_inFlowV7, Z_inFlowV8, Z_inFlowV9, Z_inFlowV10, Z_inFlowV11, Z_inFlowV12 (reset = Working);
+
+//Outputs
+	ZonalVibration Z_outFlowV, Z_outFlowV1, Z_outFlowV2 (reset = Working);
+	ZonalVibration Z_outFlowV3, Z_outFlowV4, Z_outFlowV5, Z_outFlowV6, Z_outFlowV7, Z_outFlowV8, Z_outFlowV9, Z_outFlowV10, Z_outFlowV11, Z_outFlowVV12, Z_outFlowV13, Z_outFlowVV14, Z_outFlowV15, Z_outFlowV16, Z_outFlowV17, Z_outFlowVV18, Z_outFlowV19, Z_outFlowV20, Z_outFlowV21, Z_outFlowV22, Z_outFlowV23 (reset = Working);
+
+	ZonalVibration Z_outFlowV12, Z_outFlowV34, Z_outFlowV56, Z_outFlowV78, Z_outFlowV910, Z_outFlowV112, Z_outFlowV14, Z_outFlowV58, Z_outFlowV912, Z_outFlowV18 (reset = Working);
+
+
+	assertion
+// Thermal
+
+Z_outFlowT12 := switch {
+    case ((Z_inFlowT2 == Working) and (Z_inFlowT1 == Working)) : Working
+    case ((Z_inFlowT2 == Working) and (Z_inFlowT1 == MinorTemp)) or ((Z_inFlowT2 == MinorTemp) and (Z_inFlowT1 == Working or Z_inFlowT1 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT2 == Working) and (Z_inFlowT1 == MajorTemp)) or ((Z_inFlowT2 == MinorTemp) and (Z_inFlowT1 == MajorTemp)) or ((Z_inFlowT2 == MajorTemp) and (Z_inFlowT1 == Working or Z_inFlowT1 == MinorTemp or Z_inFlowT1 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT2 == Working) and (Z_inFlowT1 == HazardTemp)) or ((Z_inFlowT2 == MinorTemp) and (Z_inFlowT1 == HazardTemp)) or ((Z_inFlowT2 == MajorTemp) and (Z_inFlowT1 == HazardTemp)) or ((Z_inFlowT2 == HazardTemp) and (Z_inFlowT1 == Working or Z_inFlowT1 == MinorTemp or Z_inFlowT1 == MajorTemp or Z_inFlowT1 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+Z_outFlowT34 := switch {
+    case ((Z_inFlowT4 == Working) and (Z_inFlowT3 == Working)) : Working
+    case ((Z_inFlowT4 == Working) and (Z_inFlowT3 == MinorTemp)) or ((Z_inFlowT4 == MinorTemp) and (Z_inFlowT3 == Working or Z_inFlowT3 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT4 == Working) and (Z_inFlowT3 == MajorTemp)) or ((Z_inFlowT4 == MinorTemp) and (Z_inFlowT3 == MajorTemp)) or ((Z_inFlowT4 == MajorTemp) and (Z_inFlowT3 == Working or Z_inFlowT3 == MinorTemp or Z_inFlowT3 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT4 == Working) and (Z_inFlowT3 == HazardTemp)) or ((Z_inFlowT4 == MinorTemp) and (Z_inFlowT3 == HazardTemp)) or ((Z_inFlowT4 == MajorTemp) and (Z_inFlowT3 == HazardTemp)) or ((Z_inFlowT4 == HazardTemp) and (Z_inFlowT3 == Working or Z_inFlowT3 == MinorTemp or Z_inFlowT3 == MajorTemp or Z_inFlowT3 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+Z_outFlowT56 := switch {
+    case ((Z_inFlowT6 == Working) and (Z_inFlowT5 == Working)) : Working
+    case ((Z_inFlowT6 == Working) and (Z_inFlowT5 == MinorTemp)) or ((Z_inFlowT6 == MinorTemp) and (Z_inFlowT5 == Working or Z_inFlowT5 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT6 == Working) and (Z_inFlowT5 == MajorTemp)) or ((Z_inFlowT6 == MinorTemp) and (Z_inFlowT5 == MajorTemp)) or ((Z_inFlowT6 == MajorTemp) and (Z_inFlowT5 == Working or Z_inFlowT5 == MinorTemp or Z_inFlowT5 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT6 == Working) and (Z_inFlowT5 == HazardTemp)) or ((Z_inFlowT6 == MinorTemp) and (Z_inFlowT5 == HazardTemp)) or ((Z_inFlowT6 == MajorTemp) and (Z_inFlowT5 == HazardTemp)) or ((Z_inFlowT6 == HazardTemp) and (Z_inFlowT5 == Working or Z_inFlowT5 == MinorTemp or Z_inFlowT5 == MajorTemp or Z_inFlowT5 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+Z_outFlowT78 := switch {
+    case ((Z_inFlowT8 == Working) and (Z_inFlowT7 == Working)) : Working
+    case ((Z_inFlowT8 == Working) and (Z_inFlowT7 == MinorTemp)) or ((Z_inFlowT8 == MinorTemp) and (Z_inFlowT7 == Working or Z_inFlowT7 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT8 == Working) and (Z_inFlowT7 == MajorTemp)) or ((Z_inFlowT8 == MinorTemp) and (Z_inFlowT7 == MajorTemp)) or ((Z_inFlowT8 == MajorTemp) and (Z_inFlowT7 == Working or Z_inFlowT7 == MinorTemp or Z_inFlowT7 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT8 == Working) and (Z_inFlowT7 == HazardTemp)) or ((Z_inFlowT8 == MinorTemp) and (Z_inFlowT7 == HazardTemp)) or ((Z_inFlowT8 == MajorTemp) and (Z_inFlowT7 == HazardTemp)) or ((Z_inFlowT8 == HazardTemp) and (Z_inFlowT7 == Working or Z_inFlowT7 == MinorTemp or Z_inFlowT7 == MajorTemp or Z_inFlowT7 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+Z_outFlowT910 := switch {
+    case ((Z_inFlowT10 == Working) and (Z_inFlowT9 == Working)) : Working
+    case ((Z_inFlowT10 == Working) and (Z_inFlowT9 == MinorTemp)) or ((Z_inFlowT10 == MinorTemp) and (Z_inFlowT9 == Working or Z_inFlowT9 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT10 == Working) and (Z_inFlowT9 == MajorTemp)) or ((Z_inFlowT10 == MinorTemp) and (Z_inFlowT9 == MajorTemp)) or ((Z_inFlowT10 == MajorTemp) and (Z_inFlowT9 == Working or Z_inFlowT9 == MinorTemp or Z_inFlowT9 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT10 == Working) and (Z_inFlowT9 == HazardTemp)) or ((Z_inFlowT10 == MinorTemp) and (Z_inFlowT9 == HazardTemp)) or ((Z_inFlowT10 == MajorTemp) and (Z_inFlowT9 == HazardTemp)) or ((Z_inFlowT10 == HazardTemp) and (Z_inFlowT9 == Working or Z_inFlowT9 == MinorTemp or Z_inFlowT9 == MajorTemp or Z_inFlowT9 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+Z_outFlowT112 := switch {
+    case ((Z_inFlowT12 == Working) and (Z_inFlowT11 == Working)) : Working
+    case ((Z_inFlowT12 == Working) and (Z_inFlowT11 == MinorTemp)) or ((Z_inFlowT12 == MinorTemp) and (Z_inFlowT11 == Working or Z_inFlowT11 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT12 == Working) and (Z_inFlowT11 == MajorTemp)) or ((Z_inFlowT12 == MinorTemp) and (Z_inFlowT11 == MajorTemp)) or ((Z_inFlowT12 == MajorTemp) and (Z_inFlowT11 == Working or Z_inFlowT11 == MinorTemp or Z_inFlowT11 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT12 == Working) and (Z_inFlowT11 == HazardTemp)) or ((Z_inFlowT12 == MinorTemp) and (Z_inFlowT11 == HazardTemp)) or ((Z_inFlowT12 == MajorTemp) and (Z_inFlowT11 == HazardTemp)) or ((Z_inFlowT12 == HazardTemp) and (Z_inFlowT11 == Working or Z_inFlowT11 == MinorTemp or Z_inFlowT11 == MajorTemp or Z_inFlowT11 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+Z_outFlowT14 := switch {
+    case ((Z_outFlowT34 == Working) and (Z_outFlowT12 == Working)) : Working
+    case ((Z_outFlowT34 == Working) and (Z_outFlowT12 == MinorTemp)) or ((Z_outFlowT34 == MinorTemp) and (Z_outFlowT12 == Working or Z_outFlowT12 == MinorTemp)) : MinorTemp
+    case ((Z_outFlowT34 == Working) and (Z_outFlowT12 == MajorTemp)) or ((Z_outFlowT34 == MinorTemp) and (Z_outFlowT12 == MajorTemp)) or ((Z_outFlowT34 == MajorTemp) and (Z_outFlowT12 == Working or Z_outFlowT12 == MinorTemp or Z_outFlowT12 == MajorTemp)) : MajorTemp
+    case ((Z_outFlowT34 == Working) and (Z_outFlowT12 == HazardTemp)) or ((Z_outFlowT34 == MinorTemp) and (Z_outFlowT12 == HazardTemp)) or ((Z_outFlowT34 == MajorTemp) and (Z_outFlowT12 == HazardTemp)) or ((Z_outFlowT34 == HazardTemp) and (Z_outFlowT12 == Working or Z_outFlowT12 == MinorTemp or Z_outFlowT12 == MajorTemp or Z_outFlowT12 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+Z_outFlowT58 := switch {
+    case ((Z_outFlowT78 == Working) and (Z_outFlowT56 == Working)) : Working
+    case ((Z_outFlowT78 == Working) and (Z_outFlowT56 == MinorTemp)) or ((Z_outFlowT78 == MinorTemp) and (Z_outFlowT56 == Working or Z_outFlowT56 == MinorTemp)) : MinorTemp
+    case ((Z_outFlowT78 == Working) and (Z_outFlowT56 == MajorTemp)) or ((Z_outFlowT78 == MinorTemp) and (Z_outFlowT56 == MajorTemp)) or ((Z_outFlowT78 == MajorTemp) and (Z_outFlowT56 == Working or Z_outFlowT56 == MinorTemp or Z_outFlowT56 == MajorTemp)) : MajorTemp
+    case ((Z_outFlowT78 == Working) and (Z_outFlowT56 == HazardTemp)) or ((Z_outFlowT78 == MinorTemp) and (Z_outFlowT56 == HazardTemp)) or ((Z_outFlowT78 == MajorTemp) and (Z_outFlowT56 == HazardTemp)) or ((Z_outFlowT78 == HazardTemp) and (Z_outFlowT56 == Working or Z_outFlowT56 == MinorTemp or Z_outFlowT56 == MajorTemp or Z_outFlowT56 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+Z_outFlowT912 := switch {
+    case ((Z_outFlowT112 == Working) and (Z_outFlowT910 == Working)) : Working
+    case ((Z_outFlowT112 == Working) and (Z_outFlowT910 == MinorTemp)) or ((Z_outFlowT112 == MinorTemp) and (Z_outFlowT910 == Working or Z_outFlowT910 == MinorTemp)) : MinorTemp
+    case ((Z_outFlowT112 == Working) and (Z_outFlowT910 == MajorTemp)) or ((Z_outFlowT112 == MinorTemp) and (Z_outFlowT910 == MajorTemp)) or ((Z_outFlowT112 == MajorTemp) and (Z_outFlowT910 == Working or Z_outFlowT910 == MinorTemp or Z_outFlowT910 == MajorTemp)) : MajorTemp
+    case ((Z_outFlowT112 == Working) and (Z_outFlowT910 == HazardTemp)) or ((Z_outFlowT112 == MinorTemp) and (Z_outFlowT910 == HazardTemp)) or ((Z_outFlowT112 == MajorTemp) and (Z_outFlowT910 == HazardTemp)) or ((Z_outFlowT112 == HazardTemp) and (Z_outFlowT910 == Working or Z_outFlowT910 == MinorTemp or Z_outFlowT910 == MajorTemp or Z_outFlowT910 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+
+Z_outFlowT913 := switch {
+    case ((Z_inFlowT13 == Working) and (Z_outFlowT912 == Working)) : Working
+    case ((Z_inFlowT13 == Working) and (Z_outFlowT912 == MinorTemp)) or ((Z_inFlowT13 == MinorTemp) and (Z_outFlowT912 == Working or Z_outFlowT912 == MinorTemp)) : MinorTemp
+    case ((Z_inFlowT13 == Working) and (Z_outFlowT912 == MajorTemp)) or ((Z_inFlowT13 == MinorTemp) and (Z_outFlowT912 == MajorTemp)) or ((Z_inFlowT13 == MajorTemp) and (Z_outFlowT912 == Working or Z_outFlowT912 == MinorTemp or Z_outFlowT912 == MajorTemp)) : MajorTemp
+    case ((Z_inFlowT13 == Working) and (Z_outFlowT912 == HazardTemp)) or ((Z_inFlowT13 == MinorTemp) and (Z_outFlowT912 == HazardTemp)) or ((Z_inFlowT13 == MajorTemp) and (Z_outFlowT912 == HazardTemp)) or ((Z_inFlowT13 == HazardTemp) and (Z_outFlowT912 == Working or Z_outFlowT912 == MinorTemp or Z_outFlowT912 == MajorTemp or Z_outFlowT912 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+Z_outFlowT18 := switch {
+    case ((Z_outFlowT58 == Working) and (Z_outFlowT14 == Working)) : Working
+    case ((Z_outFlowT58 == Working) and (Z_outFlowT14 == MinorTemp)) or ((Z_outFlowT58 == MinorTemp) and (Z_outFlowT14 == Working or Z_outFlowT14 == MinorTemp)) : MinorTemp
+    case ((Z_outFlowT58 == Working) and (Z_outFlowT14 == MajorTemp)) or ((Z_outFlowT58 == MinorTemp) and (Z_outFlowT14 == MajorTemp)) or ((Z_outFlowT58 == MajorTemp) and (Z_outFlowT14 == Working or Z_outFlowT14 == MinorTemp or Z_outFlowT14 == MajorTemp)) : MajorTemp
+    case ((Z_outFlowT58 == Working) and (Z_outFlowT14 == HazardTemp)) or ((Z_outFlowT58 == MinorTemp) and (Z_outFlowT14 == HazardTemp)) or ((Z_outFlowT58 == MajorTemp) and (Z_outFlowT14 == HazardTemp)) or ((Z_outFlowT58 == HazardTemp) and (Z_outFlowT14 == Working or Z_outFlowT14 == MinorTemp or Z_outFlowT14 == MajorTemp or Z_outFlowT14 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+
+Z_outFlowT := switch {
+    case ((Z_outFlowT913 == Working) and (Z_outFlowT18 == Working)) : Working
+    case ((Z_outFlowT913 == Working) and (Z_outFlowT18 == MinorTemp)) or ((Z_outFlowT913 == MinorTemp) and (Z_outFlowT18 == Working or Z_outFlowT18 == MinorTemp)) : MinorTemp
+    case ((Z_outFlowT913 == Working) and (Z_outFlowT18 == MajorTemp)) or ((Z_outFlowT913 == MinorTemp) and (Z_outFlowT18 == MajorTemp)) or ((Z_outFlowT913 == MajorTemp) and (Z_outFlowT18 == Working or Z_outFlowT18 == MinorTemp or Z_outFlowT18 == MajorTemp)) : MajorTemp
+    case ((Z_outFlowT913 == Working) and (Z_outFlowT18 == HazardTemp)) or ((Z_outFlowT913 == MinorTemp) and (Z_outFlowT18 == HazardTemp)) or ((Z_outFlowT913 == MajorTemp) and (Z_outFlowT18 == HazardTemp)) or ((Z_outFlowT913 == HazardTemp) and (Z_outFlowT18 == Working or Z_outFlowT18 == MinorTemp or Z_outFlowT18 == MajorTemp or Z_outFlowT18 == HazardTemp)) : HazardTemp
+    default : CatasTemp
+};
+
+
+	Z_outFlowT1 := Z_outFlowT; //To Battery
+	Z_outFlowT2 := Z_outFlowT; //To PDB
+	Z_outFlowT3 := Z_outFlowT; //To FC
+	Z_outFlowT4 := Z_outFlowT; //To FS
+	Z_outFlowT5 := Z_outFlowT; //To ESC1
+	Z_outFlowT6 := Z_outFlowT; //To 2
+	Z_outFlowT7 := Z_outFlowT; //To 3
+	Z_outFlowT8 := Z_outFlowT; //To 4
+	Z_outFlowT9 := Z_outFlowT; //To 5
+	Z_outFlowT10 := Z_outFlowT; //To ESC6
+	Z_outFlowT11 := Z_outFlowT; //To Motor1
+	Z_outFlowTT12 := Z_outFlowT; //To 2
+	Z_outFlowT13 := Z_outFlowT; //To 3
+	Z_outFlowTT14 := Z_outFlowT; //To 4
+	Z_outFlowT15 := Z_outFlowT; //To 5
+	Z_outFlowT16 := Z_outFlowT; //To Motor6
+
+
+ // Vibration
+
+Z_outFlowV12 := switch {
+    case ((Z_inFlowV2 == Working) and (Z_inFlowV1 == Working)) : Working
+    case ((Z_inFlowV2 == Working) and (Z_inFlowV1 == MinorVibra)) or ((Z_inFlowV2 == MinorVibra) and (Z_inFlowV1 == Working or Z_inFlowV1 == MinorVibra)) : MinorVibra
+    case ((Z_inFlowV2 == Working) and (Z_inFlowV1 == MajorVibra)) or ((Z_inFlowV2 == MinorVibra) and (Z_inFlowV1 == MajorVibra)) or ((Z_inFlowV2 == MajorVibra) and (Z_inFlowV1 == Working or Z_inFlowV1 == MinorVibra or Z_inFlowV1 == MajorVibra)) : MajorVibra
+    case ((Z_inFlowV2 == Working) and (Z_inFlowV1 == HazardVibra)) or ((Z_inFlowV2 == MinorVibra) and (Z_inFlowV1 == HazardVibra)) or ((Z_inFlowV2 == MajorVibra) and (Z_inFlowV1 == HazardVibra)) or ((Z_inFlowV2 == HazardVibra) and (Z_inFlowV1 == Working or Z_inFlowV1 == MinorVibra or Z_inFlowV1 == MajorVibra or Z_inFlowV1 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+Z_outFlowV34 := switch {
+    case ((Z_inFlowV4 == Working) and (Z_inFlowV3 == Working)) : Working
+    case ((Z_inFlowV4 == Working) and (Z_inFlowV3 == MinorVibra)) or ((Z_inFlowV4 == MinorVibra) and (Z_inFlowV3 == Working or Z_inFlowV3 == MinorVibra)) : MinorVibra
+    case ((Z_inFlowV4 == Working) and (Z_inFlowV3 == MajorVibra)) or ((Z_inFlowV4 == MinorVibra) and (Z_inFlowV3 == MajorVibra)) or ((Z_inFlowV4 == MajorVibra) and (Z_inFlowV3 == Working or Z_inFlowV3 == MinorVibra or Z_inFlowV3 == MajorVibra)) : MajorVibra
+    case ((Z_inFlowV4 == Working) and (Z_inFlowV3 == HazardVibra)) or ((Z_inFlowV4 == MinorVibra) and (Z_inFlowV3 == HazardVibra)) or ((Z_inFlowV4 == MajorVibra) and (Z_inFlowV3 == HazardVibra)) or ((Z_inFlowV4 == HazardVibra) and (Z_inFlowV3 == Working or Z_inFlowV3 == MinorVibra or Z_inFlowV3 == MajorVibra or Z_inFlowV3 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+Z_outFlowV56 := switch {
+    case ((Z_inFlowV6 == Working) and (Z_inFlowV5 == Working)) : Working
+    case ((Z_inFlowV6 == Working) and (Z_inFlowV5 == MinorVibra)) or ((Z_inFlowV6 == MinorVibra) and (Z_inFlowV5 == Working or Z_inFlowV5 == MinorVibra)) : MinorVibra
+    case ((Z_inFlowV6 == Working) and (Z_inFlowV5 == MajorVibra)) or ((Z_inFlowV6 == MinorVibra) and (Z_inFlowV5 == MajorVibra)) or ((Z_inFlowV6 == MajorVibra) and (Z_inFlowV5 == Working or Z_inFlowV5 == MinorVibra or Z_inFlowV5 == MajorVibra)) : MajorVibra
+    case ((Z_inFlowV6 == Working) and (Z_inFlowV5 == HazardVibra)) or ((Z_inFlowV6 == MinorVibra) and (Z_inFlowV5 == HazardVibra)) or ((Z_inFlowV6 == MajorVibra) and (Z_inFlowV5 == HazardVibra)) or ((Z_inFlowV6 == HazardVibra) and (Z_inFlowV5 == Working or Z_inFlowV5 == MinorVibra or Z_inFlowV5 == MajorVibra or Z_inFlowV5 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+Z_outFlowV78 := switch {
+    case ((Z_inFlowV8 == Working) and (Z_inFlowV7 == Working)) : Working
+    case ((Z_inFlowV8 == Working) and (Z_inFlowV7 == MinorVibra)) or ((Z_inFlowV8 == MinorVibra) and (Z_inFlowV7 == Working or Z_inFlowV7 == MinorVibra)) : MinorVibra
+    case ((Z_inFlowV8 == Working) and (Z_inFlowV7 == MajorVibra)) or ((Z_inFlowV8 == MinorVibra) and (Z_inFlowV7 == MajorVibra)) or ((Z_inFlowV8 == MajorVibra) and (Z_inFlowV7 == Working or Z_inFlowV7 == MinorVibra or Z_inFlowV7 == MajorVibra)) : MajorVibra
+    case ((Z_inFlowV8 == Working) and (Z_inFlowV7 == HazardVibra)) or ((Z_inFlowV8 == MinorVibra) and (Z_inFlowV7 == HazardVibra)) or ((Z_inFlowV8 == MajorVibra) and (Z_inFlowV7 == HazardVibra)) or ((Z_inFlowV8 == HazardVibra) and (Z_inFlowV7 == Working or Z_inFlowV7 == MinorVibra or Z_inFlowV7 == MajorVibra or Z_inFlowV7 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+Z_outFlowV910 := switch {
+    case ((Z_inFlowV10 == Working) and (Z_inFlowV9 == Working)) : Working
+    case ((Z_inFlowV10 == Working) and (Z_inFlowV9 == MinorVibra)) or ((Z_inFlowV10 == MinorVibra) and (Z_inFlowV9 == Working or Z_inFlowV9 == MinorVibra)) : MinorVibra
+    case ((Z_inFlowV10 == Working) and (Z_inFlowV9 == MajorVibra)) or ((Z_inFlowV10 == MinorVibra) and (Z_inFlowV9 == MajorVibra)) or ((Z_inFlowV10 == MajorVibra) and (Z_inFlowV9 == Working or Z_inFlowV9 == MinorVibra or Z_inFlowV9 == MajorVibra)) : MajorVibra
+    case ((Z_inFlowV10 == Working) and (Z_inFlowV9 == HazardVibra)) or ((Z_inFlowV10 == MinorVibra) and (Z_inFlowV9 == HazardVibra)) or ((Z_inFlowV10 == MajorVibra) and (Z_inFlowV9 == HazardVibra)) or ((Z_inFlowV10 == HazardVibra) and (Z_inFlowV9 == Working or Z_inFlowV9 == MinorVibra or Z_inFlowV9 == MajorVibra or Z_inFlowV9 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+
+
+Z_outFlowV112 := switch {
+    case ((Z_inFlowV12 == Working) and (Z_inFlowV11 == Working)) : Working
+    case ((Z_inFlowV12 == Working) and (Z_inFlowV11 == MinorVibra)) or ((Z_inFlowV12 == MinorVibra) and (Z_inFlowV11 == Working or Z_inFlowV11 == MinorVibra)) : MinorVibra
+    case ((Z_inFlowV12 == Working) and (Z_inFlowV11 == MajorVibra)) or ((Z_inFlowV12 == MinorVibra) and (Z_inFlowV11 == MajorVibra)) or ((Z_inFlowV12 == MajorVibra) and (Z_inFlowV11 == Working or Z_inFlowV11 == MinorVibra or Z_inFlowV11 == MajorVibra)) : MajorVibra
+    case ((Z_inFlowV12 == Working) and (Z_inFlowV11 == HazardVibra)) or ((Z_inFlowV12 == MinorVibra) and (Z_inFlowV11 == HazardVibra)) or ((Z_inFlowV12 == MajorVibra) and (Z_inFlowV11 == HazardVibra)) or ((Z_inFlowV12 == HazardVibra) and (Z_inFlowV11 == Working or Z_inFlowV11 == MinorVibra or Z_inFlowV11 == MajorVibra or Z_inFlowV11 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+Z_outFlowV14 := switch {
+    case ((Z_outFlowV34 == Working) and (Z_outFlowV12 == Working)) : Working
+    case ((Z_outFlowV34 == Working) and (Z_outFlowV12 == MinorVibra)) or ((Z_outFlowV34 == MinorVibra) and (Z_outFlowV12 == Working or Z_outFlowV12 == MinorVibra)) : MinorVibra
+    case ((Z_outFlowV34 == Working) and (Z_outFlowV12 == MajorVibra)) or ((Z_outFlowV34 == MinorVibra) and (Z_outFlowV12 == MajorVibra)) or ((Z_outFlowV34 == MajorVibra) and (Z_outFlowV12 == Working or Z_outFlowV12 == MinorVibra or Z_outFlowV12 == MajorVibra)) : MajorVibra
+    case ((Z_outFlowV34 == Working) and (Z_outFlowV12 == HazardVibra)) or ((Z_outFlowV34 == MinorVibra) and (Z_outFlowV12 == HazardVibra)) or ((Z_outFlowV34 == MajorVibra) and (Z_outFlowV12 == HazardVibra)) or ((Z_outFlowV34 == HazardVibra) and (Z_outFlowV12 == Working or Z_outFlowV12 == MinorVibra or Z_outFlowV12 == MajorVibra or Z_outFlowV12 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+Z_outFlowV58 := switch {
+    case ((Z_outFlowV78 == Working) and (Z_outFlowV56 == Working)) : Working
+    case ((Z_outFlowV78 == Working) and (Z_outFlowV56 == MinorVibra)) or ((Z_outFlowV78 == MinorVibra) and (Z_outFlowV56 == Working or Z_outFlowV56 == MinorVibra)) : MinorVibra
+    case ((Z_outFlowV78 == Working) and (Z_outFlowV56 == MajorVibra)) or ((Z_outFlowV78 == MinorVibra) and (Z_outFlowV56 == MajorVibra)) or ((Z_outFlowV78 == MajorVibra) and (Z_outFlowV56 == Working or Z_outFlowV56 == MinorVibra or Z_outFlowV56 == MajorVibra)) : MajorVibra
+    case ((Z_outFlowV78 == Working) and (Z_outFlowV56 == HazardVibra)) or ((Z_outFlowV78 == MinorVibra) and (Z_outFlowV56 == HazardVibra)) or ((Z_outFlowV78 == MajorVibra) and (Z_outFlowV56 == HazardVibra)) or ((Z_outFlowV78 == HazardVibra) and (Z_outFlowV56 == Working or Z_outFlowV56 == MinorVibra or Z_outFlowV56 == MajorVibra or Z_outFlowV56 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+
+Z_outFlowV912 := switch {
+    case ((Z_outFlowV112 == Working) and (Z_outFlowV910 == Working)) : Working
+    case ((Z_outFlowV112 == Working) and (Z_outFlowV910 == MinorVibra)) or ((Z_outFlowV112 == MinorVibra) and (Z_outFlowV910 == Working or Z_outFlowV910 == MinorVibra)) : MinorVibra
+    case ((Z_outFlowV112 == Working) and (Z_outFlowV910 == MajorVibra)) or ((Z_outFlowV112 == MinorVibra) and (Z_outFlowV910 == MajorVibra)) or ((Z_outFlowV112 == MajorVibra) and (Z_outFlowV910 == Working or Z_outFlowV910 == MinorVibra or Z_outFlowV910 == MajorVibra)) : MajorVibra
+    case ((Z_outFlowV112 == Working) and (Z_outFlowV910 == HazardVibra)) or ((Z_outFlowV112 == MinorVibra) and (Z_outFlowV910 == HazardVibra)) or ((Z_outFlowV112 == MajorVibra) and (Z_outFlowV910 == HazardVibra)) or ((Z_outFlowV112 == HazardVibra) and (Z_outFlowV910 == Working or Z_outFlowV910 == MinorVibra or Z_outFlowV910 == MajorVibra or Z_outFlowV910 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+
+Z_outFlowV18 := switch {
+    case ((Z_outFlowV58 == Working) and (Z_outFlowV14 == Working)) : Working
+    case ((Z_outFlowV58 == Working) and (Z_outFlowV14 == MinorVibra)) or ((Z_outFlowV58 == MinorVibra) and (Z_outFlowV14 == Working or Z_outFlowV14 == MinorVibra)) : MinorVibra
+    case ((Z_outFlowV58 == Working) and (Z_outFlowV14 == MajorVibra)) or ((Z_outFlowV58 == MinorVibra) and (Z_outFlowV14 == MajorVibra)) or ((Z_outFlowV58 == MajorVibra) and (Z_outFlowV14 == Working or Z_outFlowV14 == MinorVibra or Z_outFlowV14 == MajorVibra)) : MajorVibra
+    case ((Z_outFlowV58 == Working) and (Z_outFlowV14 == HazardVibra)) or ((Z_outFlowV58 == MinorVibra) and (Z_outFlowV14 == HazardVibra)) or ((Z_outFlowV58 == MajorVibra) and (Z_outFlowV14 == HazardVibra)) or ((Z_outFlowV58 == HazardVibra) and (Z_outFlowV14 == Working or Z_outFlowV14 == MinorVibra or Z_outFlowV14 == MajorVibra or Z_outFlowV14 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+
+Z_outFlowV := switch {
+    case ((Z_outFlowV912 == Working) and (Z_outFlowV18 == Working)) : Working
+    case ((Z_outFlowV912 == Working) and (Z_outFlowV18 == MinorVibra)) or ((Z_outFlowV912 == MinorVibra) and (Z_outFlowV18 == Working or Z_outFlowV18 == MinorVibra)) : MinorVibra
+    case ((Z_outFlowV912 == Working) and (Z_outFlowV18 == MajorVibra)) or ((Z_outFlowV912 == MinorVibra) and (Z_outFlowV18 == MajorVibra)) or ((Z_outFlowV912 == MajorVibra) and (Z_outFlowV18 == Working or Z_outFlowV18 == MinorVibra or Z_outFlowV18 == MajorVibra)) : MajorVibra
+    case ((Z_outFlowV912 == Working) and (Z_outFlowV18 == HazardVibra)) or ((Z_outFlowV912 == MinorVibra) and (Z_outFlowV18 == HazardVibra)) or ((Z_outFlowV912 == MajorVibra) and (Z_outFlowV18 == HazardVibra)) or ((Z_outFlowV912 == HazardVibra) and (Z_outFlowV18 == Working or Z_outFlowV18 == MinorVibra or Z_outFlowV18 == MajorVibra or Z_outFlowV18 == HazardVibra)) : HazardVibra
+    default : CatasVibra
+};
+
+
+	Z_outFlowV1 := Z_outFlowV; //To Battery
+	Z_outFlowV2 := Z_outFlowV; //To PDB
+	Z_outFlowV3 := Z_outFlowV; //To FC
+	Z_outFlowV4 := Z_outFlowV; //To FS
+	Z_outFlowV5 := Z_outFlowV; //To ESC1
+	Z_outFlowV6 := Z_outFlowV; //To 2
+	Z_outFlowV7 := Z_outFlowV; //To 3
+	Z_outFlowV8 := Z_outFlowV; //To 4
+	Z_outFlowV9 := Z_outFlowV; //To 5
+	Z_outFlowV10 := Z_outFlowV; //To ESC6
+	Z_outFlowV11 := Z_outFlowV; //To Motor1
+	Z_outFlowVV12 := Z_outFlowV; //To 2
+	Z_outFlowV13 := Z_outFlowV; //To 3
+	Z_outFlowVV14 := Z_outFlowV; //To 4
+	Z_outFlowV15 := Z_outFlowV; //To 5
+	Z_outFlowV16 := Z_outFlowV; //To Motor6
+	Z_outFlowV17 := Z_outFlowV; //To Propeller1
+	Z_outFlowVV18 := Z_outFlowV; //To 2
+	Z_outFlowV19 := Z_outFlowV; //To 3
+	Z_outFlowV20 := Z_outFlowV; //To 4
+	Z_outFlowV21 := Z_outFlowV; //To 5
+	Z_outFlowV22 := Z_outFlowV; //To Propeller6
+
+
+
+end
+
+///////////////////////////////////////////////////////////////////////////////
+
+block System
+	Battery B;
+	PowerDistributionBoard PDB;
+	FlightController FC;
+	FlightSensor FS;
+	ElectronicSpeedControll ESC1, ESC2, ESC3, ESC4, ESC5, ESC6;
+	Motor M1, M2, M3, M4, M5, M6;
+	Propeller P1, P2, P3, P4, P5, P6;
+	Controllability C;
+	Zonal Z;
+
+    
+	Control OutCtrl (reset = Working);
+
+
+	assertion
+
+// Electrical
+	PDB.PDB_inFlowE := B.B_outFlowE;
+	FC.F_inFlowE := PDB.PDB_outFlowE1;
+	FS.S_inFlowE := PDB.PDB_outFlowE2;
+	ESC1.E_inFlowE := PDB.PDB_outFlowE3;
+	ESC2.E_inFlowE := PDB.PDB_outFlowE4;
+	ESC3.E_inFlowE := PDB.PDB_outFlowE5;
+	ESC4.E_inFlowE := PDB.PDB_outFlowE6;
+	ESC5.E_inFlowE := PDB.PDB_outFlowE7;
+	ESC6.E_inFlowE := PDB.PDB_outFlowE8;
+	
+	M1.M_inFlowE := ESC1.E_outFlowE;
+	M2.M_inFlowE := ESC2.E_outFlowE;
+	M3.M_inFlowE := ESC3.E_outFlowE;
+	M4.M_inFlowE := ESC4.E_outFlowE;
+	M5.M_inFlowE := ESC5.E_outFlowE;
+	M6.M_inFlowE := ESC6.E_outFlowE;
+
+// Data
+	//FC
+	FC.F_inFlowD := FS.S_outFlowD;
+
+	//ESC
+	ESC1.E_inFlowD := FC.F_outFlowD1;
+	ESC2.E_inFlowD := FC.F_outFlowD2;
+	ESC3.E_inFlowD := FC.F_outFlowD3;
+	ESC4.E_inFlowD := FC.F_outFlowD4;
+	ESC5.E_inFlowD := FC.F_outFlowD5;
+	ESC6.E_inFlowD := FC.F_outFlowD6;
+
+	M1.M_inFlowD := ESC1.E_outFlowD;
+	M2.M_inFlowD := ESC2.E_outFlowD;
+	M3.M_inFlowD := ESC3.E_outFlowD;
+	M4.M_inFlowD := ESC4.E_outFlowD;
+	M5.M_inFlowD := ESC5.E_outFlowD;
+	M6.M_inFlowD := ESC6.E_outFlowD;
+
+
+// Mechanical
+	P1.P_inFlowM := M1.M_outFlowM;
+	P2.P_inFlowM := M2.M_outFlowM;
+	P3.P_inFlowM := M3.M_outFlowM;
+	P4.P_inFlowM := M4.M_outFlowM;
+	P5.P_inFlowM := M5.M_outFlowM;
+	P6.P_inFlowM := M6.M_outFlowM;
+
+
+
+//Control
+	C.Rotor_1 := P1.P_outFlowM;
+	C.Rotor_2 := P2.P_outFlowM;	
+	C.Rotor_3 := P3.P_outFlowM;	
+	C.Rotor_4 := P4.P_outFlowM;	
+	C.Rotor_5 := P5.P_outFlowM;	
+	C.Rotor_6 := P6.P_outFlowM;	
+
+
+
+// Thermal
+	Z.Z_inFlowT1 := B.B_outFlowT;
+	B.B_inFlowT := Z.Z_outFlowT1; // battery and the zone1 has a bidirectional relation then can I use this expression: B.B_outFlowT :=: Z.Z_inFlowT
+
+	PDB.PDB_inFlowT := Z.Z_outFlowT2;
+	FC.F_inFlowT := Z.Z_outFlowT3;
+	FS.S_inFlowT := Z.Z_outFlowT4;
+
+//ESCs
+	Z.Z_inFlowT2 := ESC1.E_outFlowT;
+	ESC1.E_inFlowT := Z.Z_outFlowT5; 
+
+	Z.Z_inFlowT3 := ESC2.E_outFlowT;
+	ESC2.E_inFlowT := Z.Z_outFlowT6; 
+
+	Z.Z_inFlowT4 := ESC3.E_outFlowT;
+	ESC3.E_inFlowT := Z.Z_outFlowT7;
+
+	Z.Z_inFlowT5 := ESC4.E_outFlowT;
+	ESC4.E_inFlowT := Z.Z_outFlowT8;
+
+	Z.Z_inFlowT6 := ESC5.E_outFlowT;
+	ESC5.E_inFlowT := Z.Z_outFlowT9;
+
+	Z.Z_inFlowT7 := ESC6.E_outFlowT;
+	ESC6.E_inFlowT := Z.Z_outFlowT10;
+
+//Motors
+	Z.Z_inFlowT8 := M1.M_outFlowT;
+	M1.M_inFlowT := Z.Z_outFlowT11;
+
+	Z.Z_inFlowT9 := M2.M_outFlowT;
+	M2.M_inFlowT := Z.Z_outFlowTT12;
+
+	Z.Z_inFlowT10 := M3.M_outFlowT;
+	M3.M_inFlowT := Z.Z_outFlowT13;
+ 
+	Z.Z_inFlowT11 := M4.M_outFlowT;
+	M4.M_inFlowT := Z.Z_outFlowTT14;
+
+	Z.Z_inFlowT12 := M5.M_outFlowT;
+	M5.M_inFlowT := Z.Z_outFlowT15;
+
+	Z.Z_inFlowT13 := M6.M_outFlowT;
+	M6.M_inFlowT := Z.Z_outFlowT16;
+
+
+//Vibration
+	B.B_inFlowV := Z.Z_outFlowV1;
+	PDB.PDB_inFlowV := Z.Z_outFlowV2;
+	FC.F_inFlowV := Z.Z_outFlowV3;
+	FS.S_inFlowV := Z.Z_outFlowV4;
+	ESC1.E_inFlowV := Z.Z_outFlowV5;
+	ESC2.E_inFlowV := Z.Z_outFlowV6; 
+	ESC3.E_inFlowV := Z.Z_outFlowV7; 
+	ESC4.E_inFlowV := Z.Z_outFlowV8; 
+	ESC5.E_inFlowV := Z.Z_outFlowV9; 
+	ESC6.E_inFlowV := Z.Z_outFlowV10; 
+
+//Motors
+	Z.Z_inFlowV1 := M1.M_outFlowV;
+	M1.M_inFlowV := Z.Z_outFlowV11;
+
+	Z.Z_inFlowV2 := M2.M_outFlowV;
+	M2.M_inFlowV := Z.Z_outFlowVV12;
+
+	Z.Z_inFlowV3 := M3.M_outFlowV;
+	M3.M_inFlowV := Z.Z_outFlowV13;
+
+	Z.Z_inFlowV4 := M4.M_outFlowV;
+	M4.M_inFlowV := Z.Z_outFlowVV14;
+
+	Z.Z_inFlowV5 := M5.M_outFlowV;
+	M5.M_inFlowV := Z.Z_outFlowV15;
+
+	Z.Z_inFlowV6 := M6.M_outFlowV;
+	M6.M_inFlowV := Z.Z_outFlowV16;
+
+//Propellers
+	Z.Z_inFlowV7 := P1.P_outFlowV;
+	P1.P_inFlowV := Z.Z_outFlowV17;
+
+	Z.Z_inFlowV8 := P2.P_outFlowV;
+	P2.P_inFlowV := Z.Z_outFlowVV18;
+
+	Z.Z_inFlowV9 := P3.P_outFlowV;
+	P3.P_inFlowV := Z.Z_outFlowV19;
+
+	Z.Z_inFlowV10 := P4.P_outFlowV;
+	P4.P_inFlowV := Z.Z_outFlowV20;
+
+	Z.Z_inFlowV11 := P5.P_outFlowV;
+	P5.P_inFlowV := Z.Z_outFlowV21;
+
+	Z.Z_inFlowV12 := P6.P_outFlowV;
+	P6.P_inFlowV := Z.Z_outFlowV22;
+	
+
+// Control
+	OutCtrl := C.C_outFlowC;
+
+//Control 
+	observer Boolean Ctrl_Catas = (OutCtrl == CATCtrl);
+	observer Boolean Ctrl_Hazard = (OutCtrl == HZDCtrl);
+	observer Boolean Ctrl_Major = (OutCtrl == MJRCtrl);
+	observer Boolean Ctrl_Minor = (OutCtrl == MNRCtrl);
+end
+
