@@ -1,5 +1,5 @@
 %% HEXACOPTER ACAI ANALYSIS
-% This script computes the Available Control Authority Index (ACAI / PACA)
+% This script computes the Available Control Authority Index (ACAI)
 % for a simple hexacopter (PNPNPN) and then sweeps over degraded thrust
 % levels for each rotor.
 %
@@ -175,3 +175,4 @@ function rho = local_acai_margin(B_f, u_min, u_max, G)
     % Margin: minimum distance over all hyperplane segments
     rho = min(d);
 end
+
